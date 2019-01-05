@@ -45,6 +45,15 @@ const grinminerLocation string = "https://api.github.com/repos/mimblewimble/grin
 const beamLocation string = "https://api.github.com/repos/BeamMW/beam"
 const router string = "linksys-wrt3200acm"
 
+func init() {
+	log.SetFormatter(&log.TextFormatter{
+		DisableColors: true,
+		FullTimestamp: true,
+	})
+	log.SetLevel(log.DebugLevel)
+	log.Debug("Init")
+}
+
 func exitErrorf(msg string, args ...interface{}) {
 	fmt.Fprintf(os.Stderr, msg+"\n", args...)
 	os.Exit(1)
@@ -316,12 +325,6 @@ func writeLastRunTime() {
 }
 
 func main() {
-	log.SetFormatter(&log.TextFormatter{
-		DisableColors: true,
-		FullTimestamp: true,
-	})
-	log.SetLevel(log.DebugLevel)
-	log.Debug("Program begin.")
 	//channel := make(chan string)
 	//channel2 := make(chan string)
 	//readFileServer(ddwrtLocation, channel, "2019")
