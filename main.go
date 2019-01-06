@@ -51,11 +51,12 @@ func init() {
 		FullTimestamp: true,
 	})
 	log.SetLevel(log.DebugLevel)
-	log.Debug("Init")
+	log.Debug("Initialization.")
 }
 
 func exitErrorf(msg string, args ...interface{}) {
 	fmt.Fprintf(os.Stderr, msg+"\n", args...)
+	log.Fatal(msg)
 	os.Exit(1)
 }
 
@@ -144,10 +145,15 @@ func sendSlackMessage(channel string, message string) {
 	if err != nil {
 		exitErrorf("Sending a message to Slack failed, %v", err)
 	}
-	fmt.Printf("Message successfully sent to channel %s at %s\n", channelID, timestamp)
+
+	// Not sure how to handle this in Golang yet.
+	_ = timestamp
+
+	log.WithFields(log.Fields{"channel_id": channelID})
+	log.Info("Slack message sent successfully.")
 }
 
-func readFileServer(url string, dependency chan string, fileNamePrefix string) {
+func readFileServer(url string, dependency chan string) {
 	response, err := http.Get(url)
 	if err != nil {
 		fmt.Println("The HTTP request failed with error %s\n", err)
@@ -161,11 +167,28 @@ func readFileServer(url string, dependency chan string, fileNamePrefix string) {
 		f = func(n *html.Node, dependency chan string) {
 			if n.Type == html.ElementNode && n.Data == "a" {
 				for _, a := range n.Attr {
-					if a.Key == "href" && strings.Contains(a.Val, fileNamePrefix) {
-						dependency <- a.Val
-						break
+					if a.Key == "href" {
+						log.Info(a.Val)
+						//dependency <- a.Val
+						//break
 					}
 				}
+			}
+			if n.Type == html.TextNode {
+				log.Info("We are in a text node!")
+				// Figure out if it's a date
+				trimStr := strings.TrimSpace(n.Data)
+				log.Debug(trimStr)
+				t, _ := time.Parse("2006-01-02 15:04", trimStr)
+				//_ = t
+				//if err != nil {
+				//	log.Debug("Not a time string")
+				//} else {
+				//	log.Debug("It is a time string!")
+				//}
+				fileTime := t.Format(time.RFC1123)
+				lastRunTime := getLastRunTime()
+				//log.Debug(fileTime.After(lastRunTime))
 			}
 			for c := n.LastChild; c != nil; c = c.PrevSibling {
 				f(c, dependency)
@@ -325,7 +348,7 @@ func writeLastRunTime() {
 }
 
 func main() {
-	//channel := make(chan string)
+	channel := make(chan string)
 	//channel2 := make(chan string)
 	//readFileServer(ddwrtLocation, channel, "2019")
 	//dependency := <-channel
@@ -341,6 +364,8 @@ func main() {
 	//if softwareUpdate(castXmrLocation) {
 	//	sendSlackMessage(slackChannel, "New version of Cast XMR available!")
 	//}
+
+	readFileServer(castXmrLocation, channel)
 
 	githubResourceUpdate(xmrStakLocation)
 	githubResourceUpdate(xmrRigNvidiaLocation)
@@ -363,5 +388,5 @@ func main() {
 	// TODO: Implement handler for repos with no releases.
 	//githubResourceUpdate(grinminerLocation)
 
-	writeLastRunTime()
+	//writeLastRunTime()
 }
