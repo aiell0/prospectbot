@@ -22,7 +22,7 @@ import (
 const bucketName string = "blockforge-infrastructure"
 const slackChannel string = "DC6V5T82E"
 const slackToken string = "xoxa-410442786752-414276217760-414753865764-e6e4ea550bd22c5c19a3c8eeef3fb2e4"
-const ddwrtLocation string = "https://download1.dd-wrt.com/dd-wrtv2/downloads/betas/2018/"
+const ddwrtLocation string = "https://download1.dd-wrt.com/dd-wrtv2/downloads/betas/2019/"
 const castXmrLocation string = "http://www.gandalph3000.com/download/"
 const xmrStakLocation string = "https://api.github.com/repos/fireice-uk/xmr-stak"
 const xmrRigNvidiaLocation string = "https://api.github.com/repos/xmrig/xmrig-nvidia"
@@ -156,7 +156,7 @@ func sendSlackMessage(channel string, message string) {
 func readFileServer(url string, dependency chan string) {
 	response, err := http.Get(url)
 	if err != nil {
-		fmt.Println("The HTTP request failed with error %s\n", err)
+		exitErrorf("The HTTP request failed with error %s\n", err)
 	} else {
 		data, _ := ioutil.ReadAll(response.Body)
 		doc, err := html.Parse(strings.NewReader(string(data)))
@@ -175,7 +175,7 @@ func readFileServer(url string, dependency chan string) {
 				}
 			}
 			if n.Type == html.TextNode {
-				log.Info("We are in a text node!")
+				log.Debug("text node")
 				// Figure out if it's a date
 				trimStr := strings.TrimSpace(n.Data)
 				log.Debug(trimStr)
@@ -188,7 +188,13 @@ func readFileServer(url string, dependency chan string) {
 				//}
 				fileTime := t.Format(time.RFC1123)
 				lastRunTime := getLastRunTime()
-				//log.Debug(fileTime.After(lastRunTime))
+				log.Debug("Last run time for Forgesense: ", lastRunTime)
+				lr_t, _ := time.Parse("Mon, 02 Jan 2006 15:04:05 MST", lastRunTime)
+				file_t, _ := time.Parse("Mon, 02 Jan 2006 15:04:05 MST", fileTime)
+				log.Debug("Updated item: %s", lr_t.Before(file_t))
+				if lr_t.Before(file_t) {
+					sendSlackMessage(slackChannel, "New version of software available at file server: "+url)
+				}
 			}
 			for c := n.LastChild; c != nil; c = c.PrevSibling {
 				f(c, dependency)
@@ -348,8 +354,8 @@ func writeLastRunTime() {
 }
 
 func main() {
-	channel := make(chan string)
-	//channel2 := make(chan string)
+	//channel := make(chan string)
+	channel2 := make(chan string)
 	//readFileServer(ddwrtLocation, channel, "2019")
 	//dependency := <-channel
 	//var release string = dependency[11 : len(dependency)-1]
@@ -365,26 +371,29 @@ func main() {
 	//	sendSlackMessage(slackChannel, "New version of Cast XMR available!")
 	//}
 
-	readFileServer(castXmrLocation, channel)
+	//readFileServer(castXmrLocation, channel)
+	readFileServer(ddwrtLocation, channel2)
+	dependency := <-channel2
+	log.Debug("Dependency: ", dependency)
 
-	githubResourceUpdate(xmrStakLocation)
-	githubResourceUpdate(xmrRigNvidiaLocation)
-	githubResourceUpdate(xmrRigAmdLocation)
-	githubResourceUpdate(finminerEthLocation)
-	githubResourceUpdate(claymoreEthLocation)
-	githubResourceUpdate(claymoreZecLocation)
-	githubResourceUpdate(excavatorZecLocation)
-	githubResourceUpdate(ewbfZecLocation)
-	githubResourceUpdate(sgminerZecLocation)
-	githubResourceUpdate(nheqZecLocation)
-	githubResourceUpdate(rhminerPascalLocation)
-	githubResourceUpdate(claymoreXmrLocation)
-	githubResourceUpdate(trexRavencoinLocation)
-	githubResourceUpdate(avermoreRavencoinLocation)
-	githubResourceUpdate(nanominerLocation)
-	githubResourceUpdate(suprminerLocation)
-	githubResourceUpdate(wildrigLocation)
-	githubResourceUpdate(beamLocation)
+	//githubResourceUpdate(xmrStakLocation)
+	//githubResourceUpdate(xmrRigNvidiaLocation)
+	//githubResourceUpdate(xmrRigAmdLocation)
+	//githubResourceUpdate(finminerEthLocation)
+	//githubResourceUpdate(claymoreEthLocation)
+	//githubResourceUpdate(claymoreZecLocation)
+	//githubResourceUpdate(excavatorZecLocation)
+	//githubResourceUpdate(ewbfZecLocation)
+	//githubResourceUpdate(sgminerZecLocation)
+	//githubResourceUpdate(nheqZecLocation)
+	//githubResourceUpdate(rhminerPascalLocation)
+	//githubResourceUpdate(claymoreXmrLocation)
+	//githubResourceUpdate(trexRavencoinLocation)
+	//githubResourceUpdate(avermoreRavencoinLocation)
+	//githubResourceUpdate(nanominerLocation)
+	//githubResourceUpdate(suprminerLocation)
+	//githubResourceUpdate(wildrigLocation)
+	//githubResourceUpdate(beamLocation)
 	// TODO: Implement handler for repos with no releases.
 	//githubResourceUpdate(grinminerLocation)
 
