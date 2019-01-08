@@ -22,7 +22,8 @@ import (
 const bucketName string = "blockforge-infrastructure"
 const slackChannel string = "DC6V5T82E"
 const slackToken string = "xoxa-410442786752-414276217760-414753865764-e6e4ea550bd22c5c19a3c8eeef3fb2e4"
-const ddwrtLocation string = "https://download1.dd-wrt.com/dd-wrtv2/downloads/betas/2019/"
+
+//const ddwrtLocation string = "https://download1.dd-wrt.com/dd-wrtv2/downloads/betas/2019/"
 const castXmrLocation string = "http://www.gandalph3000.com/download/"
 const xmrStakLocation string = "https://api.github.com/repos/fireice-uk/xmr-stak"
 const xmrRigNvidiaLocation string = "https://api.github.com/repos/xmrig/xmrig-nvidia"
@@ -154,6 +155,7 @@ func sendSlackMessage(channel string, message string) {
 }
 
 func readFileServer(url string, dependency chan string) {
+	lastRunTime := getLastRunTime()
 	response, err := http.Get(url)
 	if err != nil {
 		exitErrorf("The HTTP request failed with error %s\n", err)
@@ -169,29 +171,19 @@ func readFileServer(url string, dependency chan string) {
 				for _, a := range n.Attr {
 					if a.Key == "href" {
 						log.Info(a.Val)
-						//dependency <- a.Val
+						dependency <- a.Val
 						//break
 					}
 				}
 			}
+			// This only works for CastXMR. Will have to be made more robust.
 			if n.Type == html.TextNode {
 				log.Debug("text node")
-				// Figure out if it's a date
 				trimStr := strings.TrimSpace(n.Data)
-				log.Debug(trimStr)
 				t, _ := time.Parse("2006-01-02 15:04", trimStr)
-				//_ = t
-				//if err != nil {
-				//	log.Debug("Not a time string")
-				//} else {
-				//	log.Debug("It is a time string!")
-				//}
 				fileTime := t.Format(time.RFC1123)
-				lastRunTime := getLastRunTime()
-				log.Debug("Last run time for Forgesense: ", lastRunTime)
 				lr_t, _ := time.Parse("Mon, 02 Jan 2006 15:04:05 MST", lastRunTime)
 				file_t, _ := time.Parse("Mon, 02 Jan 2006 15:04:05 MST", fileTime)
-				log.Debug("Updated item: %s", lr_t.Before(file_t))
 				if lr_t.Before(file_t) {
 					sendSlackMessage(slackChannel, "New version of software available at file server: "+url)
 				}
@@ -354,26 +346,15 @@ func writeLastRunTime() {
 }
 
 func main() {
-	//channel := make(chan string)
-	channel2 := make(chan string)
-	//readFileServer(ddwrtLocation, channel, "2019")
-	//dependency := <-channel
-	//var release string = dependency[11 : len(dependency)-1]
-	//var binFile string = "ddwrt-" + router + "-webflash.bin"
-	//var ddwrtBin string = "ddwrt-" + release + ".bin"
-	//if readFileServer(ddwrtLocation) {
-	//	sendSlackMessage(slackChannel, "New version of DD-WRT available!")
-	//}
-
-	//readFileServer(castXmrLocation, channel2, "cast_xmr")
+	channel := make(chan string, 10)
 	//dependency = <-channel2
 	//if softwareUpdate(castXmrLocation) {
 	//	sendSlackMessage(slackChannel, "New version of Cast XMR available!")
 	//}
 
 	//readFileServer(castXmrLocation, channel)
-	readFileServer(ddwrtLocation, channel2)
-	dependency := <-channel2
+	readFileServer(castXmrLocation, channel)
+	dependency := <-channel
 	log.Debug("Dependency: ", dependency)
 
 	//githubResourceUpdate(xmrStakLocation)
