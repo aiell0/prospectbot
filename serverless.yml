@@ -1,34 +1,33 @@
-service: forgesense
-
+--- 
 frameworkVersion: ">=1.28.0 <2.0.0"
-
-provider:
-  name: aws
-  runtime: go1.x
-  stage: dev
-  region: us-east-1
-  memorySize: 512
-  timeout: 10
-  profile: serverless
-  deploymentBucket:
+functions: 
+  table_definitions: 
+    handler: main.checkForMinerUpdates
+package:
+ exclude:
+   - ./**
+ include:
+   - ./bin/**
+provider: 
+  deploymentBucket: 
     name: forgesense-serverless
     serverSideEncryption: AES256
   deploymentPrefix: serverless
+  memorySize: 512
+  name: aws
+  profile: serverless
+  region: us-east-1
+  runtime: go1.x
+  stage: dev
+  timeout: 10
   versionFunctions: false
-  vpc:
-    securityGroupIds:
+  vpc: 
+    securityGroupIds: 
       - sg-0a004076bb0b36504
-    subnetIds:
+    subnetIds: 
       - subnet-501d896c
       - subnet-0fd39854
       - subnet-c436a7a1
       - subnet-d61aa3da
       - subnet-dd89d5f0
-  package:
-    artifact: ${env:GOPATH}/lambda.zip
-
-functions:
-  table_definitions:
-    handler: main.checkForMinerUpdates
-
-
+service: forgesense
