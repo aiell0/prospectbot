@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/awserr"
 	"github.com/aws/aws-sdk-go-v2/aws/endpoints"
@@ -345,17 +346,23 @@ func writeLastRunTime() {
 	fmt.Println(result)
 }
 
+func checkForMinerUpdates() {
+	githubResourceUpdate(xmrStakLocation)
+}
+
 func main() {
-	channel := make(chan string, 10)
+	//channel := make(chan string, 10)
 	//dependency = <-channel2
 	//if softwareUpdate(castXmrLocation) {
 	//	sendSlackMessage(slackChannel, "New version of Cast XMR available!")
 	//}
 
 	//readFileServer(castXmrLocation, channel)
-	readFileServer(castXmrLocation, channel)
-	dependency := <-channel
-	log.Debug("Dependency: ", dependency)
+	//readFileServer(castXmrLocation, channel)
+	//dependency := <-channel
+	//log.Debug("Dependency: ", dependency)
+	// Make the handler available for Remote Procedure Call by AWS Lambda
+	lambda.Start(checkForMinerUpdates)
 
 	//githubResourceUpdate(xmrStakLocation)
 	//githubResourceUpdate(xmrRigNvidiaLocation)
