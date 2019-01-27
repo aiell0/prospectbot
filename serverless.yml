@@ -2,7 +2,8 @@
 frameworkVersion: ">=1.28.0 <2.0.0"
 functions: 
   forgesense: 
-    handler: main.Handler
+    handler: cmd/main
+    name: forgesense
 package:
  exclude:
    - ./**

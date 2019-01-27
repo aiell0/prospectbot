@@ -346,8 +346,9 @@ func writeLastRunTime() {
 	fmt.Println(result)
 }
 
-func Handler() {
+func checkMiners() (string, error) {
 	githubResourceUpdate(xmrStakLocation)
+	return "Successful!", nil
 }
 
 func main() {
@@ -362,7 +363,7 @@ func main() {
 	//dependency := <-channel
 	//log.Debug("Dependency: ", dependency)
 	// Make the handler available for Remote Procedure Call by AWS Lambda
-	lambda.Start(Handler)
+	lambda.Start(checkMiners)
 
 	//githubResourceUpdate(xmrStakLocation)
 	//githubResourceUpdate(xmrRigNvidiaLocation)
