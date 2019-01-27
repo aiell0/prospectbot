@@ -1,18 +1,18 @@
 --- 
 frameworkVersion: ">=1.28.0 <2.0.0"
 functions: 
-  table_definitions: 
-    handler: main.checkForMinerUpdates
+  forgesense: 
+    handler: main.Handler
 package:
  exclude:
    - ./**
  include:
-   - ./bin/**
+   - ./cmd/*
 provider: 
   deploymentBucket: 
-    name: forgesense-serverless
+    name: serverless-deployment-stacks
     serverSideEncryption: AES256
-  deploymentPrefix: serverless
+  deploymentPrefix: forgesense
   memorySize: 512
   name: aws
   profile: serverless
