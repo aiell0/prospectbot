@@ -347,27 +347,11 @@ func writeLastRunTime() {
 }
 
 func checkMiners() (string, error) {
-	githubResourceUpdate(xmrStakLocation)
-	return "Successful!", nil
-}
-
-func main() {
-	//channel := make(chan string, 10)
-	//dependency = <-channel2
-	//if softwareUpdate(castXmrLocation) {
-	//	sendSlackMessage(slackChannel, "New version of Cast XMR available!")
-	//}
-
-	//readFileServer(castXmrLocation, channel)
-	//readFileServer(castXmrLocation, channel)
-	//dependency := <-channel
-	//log.Debug("Dependency: ", dependency)
-	// Make the handler available for Remote Procedure Call by AWS Lambda
-	lambda.Start(checkMiners)
-
+	log.Debug("In checkMiners")
 	//githubResourceUpdate(xmrStakLocation)
-	//githubResourceUpdate(xmrRigNvidiaLocation)
+	log.Debug("After github")
 	//githubResourceUpdate(xmrRigAmdLocation)
+	//githubResourceUpdate(xmrRigNvidiaLocation)
 	//githubResourceUpdate(finminerEthLocation)
 	//githubResourceUpdate(claymoreEthLocation)
 	//githubResourceUpdate(claymoreZecLocation)
@@ -383,8 +367,26 @@ func main() {
 	//githubResourceUpdate(suprminerLocation)
 	//githubResourceUpdate(wildrigLocation)
 	//githubResourceUpdate(beamLocation)
+	writeLastRunTime()
+	return "Successful!", nil
+}
+
+func main() {
+	log.Debug("In main")
+	//channel := make(chan string, 10)
+	//dependency = <-channel2
+	//if softwareUpdate(castXmrLocation) {
+	//	sendSlackMessage(slackChannel, "New version of Cast XMR available!")
+	//}
+
+	//readFileServer(castXmrLocation, channel)
+	//readFileServer(castXmrLocation, channel)
+	//dependency := <-channel
+	//log.Debug("Dependency: ", dependency)
+	// Make the handler available for Remote Procedure Call by AWS Lambda
+	lambda.Start(checkMiners)
+
 	// TODO: Implement handler for repos with no releases.
 	//githubResourceUpdate(grinminerLocation)
 
-	//writeLastRunTime()
 }

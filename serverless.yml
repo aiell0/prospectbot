@@ -4,6 +4,12 @@ functions:
   forgesense: 
     handler: cmd/main
     name: forgesense
+    events:
+      - schedule:
+          rate: rate(10 minutes)
+          enabled: true
+          name: forgesense-github-miner-check
+          description: 'Checks Github for new software releases'
 package:
  exclude:
    - ./**
@@ -20,7 +26,7 @@ provider:
   region: us-east-1
   runtime: go1.x
   stage: dev
-  timeout: 10
+  timeout: 60
   versionFunctions: false
   vpc: 
     securityGroupIds: 
@@ -31,4 +37,13 @@ provider:
       - subnet-c436a7a1
       - subnet-d61aa3da
       - subnet-dd89d5f0
+  iamRoleStatements:
+      - Effect: "Allow"
+        Action:
+          - "dynamodb:PutItem"
+          - "dynamodb:ListTables"
+          - "dynamodb:GetItem"
+          - "dynamodb:Query"
+          - "dynamodb:UpdateItem"
+        Resource: "*"
 service: forgesense
