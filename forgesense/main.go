@@ -198,6 +198,7 @@ func readFileServer(url string, dependency chan string) {
 }
 
 func githubResourceUpdate(url string) {
+	log.Debug("In github update function")
 	splitUrl := strings.Split(url, "/")
 	repoName := splitUrl[len(splitUrl)-1]
 	lastRunTime := getLastRunTime()
@@ -348,25 +349,25 @@ func writeLastRunTime() {
 
 func checkMiners() (string, error) {
 	log.Debug("In checkMiners")
-	//githubResourceUpdate(xmrStakLocation)
+	githubResourceUpdate(xmrStakLocation)
 	log.Debug("After github")
-	//githubResourceUpdate(xmrRigAmdLocation)
-	//githubResourceUpdate(xmrRigNvidiaLocation)
-	//githubResourceUpdate(finminerEthLocation)
-	//githubResourceUpdate(claymoreEthLocation)
-	//githubResourceUpdate(claymoreZecLocation)
-	//githubResourceUpdate(excavatorZecLocation)
-	//githubResourceUpdate(ewbfZecLocation)
-	//githubResourceUpdate(sgminerZecLocation)
-	//githubResourceUpdate(nheqZecLocation)
-	//githubResourceUpdate(rhminerPascalLocation)
-	//githubResourceUpdate(claymoreXmrLocation)
-	//githubResourceUpdate(trexRavencoinLocation)
-	//githubResourceUpdate(avermoreRavencoinLocation)
-	//githubResourceUpdate(nanominerLocation)
-	//githubResourceUpdate(suprminerLocation)
-	//githubResourceUpdate(wildrigLocation)
-	//githubResourceUpdate(beamLocation)
+	githubResourceUpdate(xmrRigAmdLocation)
+	githubResourceUpdate(xmrRigNvidiaLocation)
+	githubResourceUpdate(finminerEthLocation)
+	githubResourceUpdate(claymoreEthLocation)
+	githubResourceUpdate(claymoreZecLocation)
+	githubResourceUpdate(excavatorZecLocation)
+	githubResourceUpdate(ewbfZecLocation)
+	githubResourceUpdate(sgminerZecLocation)
+	githubResourceUpdate(nheqZecLocation)
+	githubResourceUpdate(rhminerPascalLocation)
+	githubResourceUpdate(claymoreXmrLocation)
+	githubResourceUpdate(trexRavencoinLocation)
+	githubResourceUpdate(avermoreRavencoinLocation)
+	githubResourceUpdate(nanominerLocation)
+	githubResourceUpdate(suprminerLocation)
+	githubResourceUpdate(wildrigLocation)
+	githubResourceUpdate(beamLocation)
 	writeLastRunTime()
 	return "Successful!", nil
 }
