@@ -3,4 +3,5 @@ run-as: root
 phases:
   build:
     commands:
+      - dep ensure
       - GOOS=linux GOARCH=amd64 go build -o cmd/main forgesense/main.go
