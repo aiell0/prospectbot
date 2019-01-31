@@ -1,6 +1,10 @@
 version: 0.2
 run-as: root
 phases:
+  install:
+    commands:
+      - echo Entered the install phase...
+      - curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
   build:
     commands:
       - dep ensure
