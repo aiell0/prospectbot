@@ -348,9 +348,7 @@ func writeLastRunTime() {
 }
 
 func checkMiners() (string, error) {
-	log.Debug("In checkMiners")
 	githubResourceUpdate(xmrStakLocation)
-	log.Debug("After github")
 	githubResourceUpdate(xmrRigAmdLocation)
 	githubResourceUpdate(xmrRigNvidiaLocation)
 	githubResourceUpdate(finminerEthLocation)
@@ -373,7 +371,6 @@ func checkMiners() (string, error) {
 }
 
 func main() {
-	log.Debug("In main")
 	//channel := make(chan string, 10)
 	//dependency = <-channel2
 	//if softwareUpdate(castXmrLocation) {
