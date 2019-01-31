@@ -3,8 +3,15 @@ run-as: root
 phases:
   install:
     commands:
-      - echo Entered the install phase...
-      - curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
+      - go get -u github.com/golang/lint/golint
+      - go get -u github.com/sirupsen/logrus
+      - go get -u github.com/aws/aws-lambda-go/lambda
+      - go get -u github.com/aws/aws-sdk-go-v2/aws
+      - go get -u github.com/nlopes/slack
+      - go get -u golang.org/x/net/html
+  pre_build:
+    commands:
+      - golint -set_exit_status
   build:
     commands:
       - dep ensure
