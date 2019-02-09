@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-lambda-go/lambda"
+	//"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/awserr"
 	"github.com/aws/aws-sdk-go-v2/aws/endpoints"
@@ -202,7 +202,6 @@ func githubResourceUpdate(url string) {
 	splitUrl := strings.Split(url, "/")
 	repoName := splitUrl[len(splitUrl)-1]
 	lastRunTime := getLastRunTime()
-	fmt.Println(lastRunTime)
 	c := &http.Client{}
 	latestReleaseUrl := url + "/releases/latest"
 	req, _ := http.NewRequest("GET", latestReleaseUrl, nil)
@@ -231,6 +230,20 @@ func githubResourceUpdate(url string) {
 		fmt.Println("The HTTP request failed with error %s\n", err)
 	} else {
 		if res.StatusCode == 200 {
+			t := time.Now().UTC()
+			//t_rfc := t.Format(time.RFC1123)
+			fmt.Println(githubResponse.Published_at)
+			time_published, _ := time.Parse("2006-01-02T15:04:05Z", githubResponse.Published_at)
+			//time_published_rfc := time_published.Format(time.RFC1123)
+			fmt.Println(t)
+			fmt.Println(time_published)
+			time_last_run, _ := time.Parse("Mon, 02 Jan 2006 15:04:05 MST", lastRunTime)
+			fmt.Println(time_last_run)
+			if time_last_run.Before(time_published) && t.After(time_published) {
+				fmt.Println("New Version!")
+			} else {
+				fmt.Println("Repo update")
+			}
 			sendSlackMessage(slackChannel, repoName+" has been updated!")
 			sendSlackMessage(slackChannel, githubResponse.Html_url)
 		} else if res.StatusCode == 304 {
@@ -371,6 +384,7 @@ func checkMiners() (string, error) {
 }
 
 func main() {
+	githubResourceUpdate(wildrigLocation)
 	//channel := make(chan string, 10)
 	//dependency = <-channel2
 	//if softwareUpdate(castXmrLocation) {
@@ -382,7 +396,7 @@ func main() {
 	//dependency := <-channel
 	//log.Debug("Dependency: ", dependency)
 	// Make the handler available for Remote Procedure Call by AWS Lambda
-	lambda.Start(checkMiners)
+	//	lambda.Start(checkMiners)
 
 	// TODO: Implement handler for repos with no releases.
 	//githubResourceUpdate(grinminerLocation)
