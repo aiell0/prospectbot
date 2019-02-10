@@ -230,22 +230,16 @@ func githubResourceUpdate(url string) {
 		fmt.Println("The HTTP request failed with error %s\n", err)
 	} else {
 		if res.StatusCode == 200 {
-			t := time.Now().UTC()
-			//t_rfc := t.Format(time.RFC1123)
+			time_now := time.Now().UTC()
 			fmt.Println(githubResponse.Published_at)
 			time_published, _ := time.Parse("2006-01-02T15:04:05Z", githubResponse.Published_at)
-			//time_published_rfc := time_published.Format(time.RFC1123)
-			fmt.Println(t)
-			fmt.Println(time_published)
 			time_last_run, _ := time.Parse("Mon, 02 Jan 2006 15:04:05 MST", lastRunTime)
-			fmt.Println(time_last_run)
-			if time_last_run.Before(time_published) && t.After(time_published) {
-				fmt.Println("New Version!")
+			if time_last_run.Before(time_published) && time_now.After(time_published) {
+				sendSlackMessage(slackChannel, "New version of "+repoName)
+				sendSlackMessage(slackChannel, githubResponse.Html_url)
 			} else {
 				fmt.Println("Repo update")
 			}
-			sendSlackMessage(slackChannel, repoName+" has been updated!")
-			sendSlackMessage(slackChannel, githubResponse.Html_url)
 		} else if res.StatusCode == 304 {
 			fmt.Println("No update for " + repoName)
 		} else {
