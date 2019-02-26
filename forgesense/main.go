@@ -83,7 +83,7 @@ type Author struct {
 	Site_admin          bool
 }
 
-type Assets struct {
+type Asset struct {
 	Url                  string
 	Browser_download_url string
 	Id                   int
@@ -138,7 +138,7 @@ type GithubResponse struct {
 	Created_at       string
 	Published_at     string
 	Author           Author
-	Assets           []Assets
+	Assets           []Asset
 }
 
 func sendSlackMessage(channel string, message string) {
@@ -198,7 +198,6 @@ func readFileServer(url string, dependency chan string) {
 }
 
 func githubResourceUpdate(url string) {
-	log.Debug("In github update function")
 	splitUrl := strings.Split(url, "/")
 	repoName := splitUrl[len(splitUrl)-1]
 	lastRunTime := getLastRunTime()
@@ -231,14 +230,20 @@ func githubResourceUpdate(url string) {
 	} else {
 		if res.StatusCode == 200 {
 			time_now := time.Now().UTC()
-			fmt.Println(githubResponse.Published_at)
 			time_published, _ := time.Parse("2006-01-02T15:04:05Z", githubResponse.Published_at)
 			time_last_run, _ := time.Parse("Mon, 02 Jan 2006 15:04:05 MST", lastRunTime)
 			if time_last_run.Before(time_published) && time_now.After(time_published) {
 				sendSlackMessage(slackChannel, "New version of "+repoName)
 				sendSlackMessage(slackChannel, githubResponse.Html_url)
-			} else {
-				fmt.Println("Repo update")
+			}
+			var assets []Asset = githubResponse.Assets
+			for _, asset := range assets {
+				time_asset_created, _ := time.Parse("2006-01-02T15:04:05Z", asset.Created_at)
+				fmt.Println("Asset Creation Time: " + time_asset_created.String())
+				if time_last_run.Before(time_asset_created) && time_now.After(time_asset_created) {
+					sendSlackMessage(slackChannel, "The latest release of "+repoName+" has been updated.")
+					sendSlackMessage(slackChannel, asset.Name+":"+asset.Url)
+				}
 			}
 		} else if res.StatusCode == 304 {
 			fmt.Println("No update for " + repoName)
