@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	//"github.com/aws/aws-lambda-go/lambda"
+	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/awserr"
 	"github.com/aws/aws-sdk-go-v2/aws/endpoints"
@@ -197,12 +197,10 @@ func readFileServer(url string, dependency chan string) {
 	}
 }
 
-func githubResourceUpdate(url string) {
-	splitUrl := strings.Split(url, "/")
-	repoName := splitUrl[len(splitUrl)-1]
+func queryGithub(owner string, miner string) {
 	lastRunTime := getLastRunTime()
 	c := &http.Client{}
-	latestReleaseUrl := url + "/releases/latest"
+	latestReleaseUrl := "https://api.github.com/repos/" + owner + "/" + miner + "/releases/latest"
 	req, _ := http.NewRequest("GET", latestReleaseUrl, nil)
 	req.Header.Set("If-Modified-Since", lastRunTime)
 	res, err := c.Do(req)
@@ -233,7 +231,7 @@ func githubResourceUpdate(url string) {
 			time_published, _ := time.Parse("2006-01-02T15:04:05Z", githubResponse.Published_at)
 			time_last_run, _ := time.Parse("Mon, 02 Jan 2006 15:04:05 MST", lastRunTime)
 			if time_last_run.Before(time_published) && time_now.After(time_published) {
-				sendSlackMessage(slackChannel, "New version of "+repoName)
+				sendSlackMessage(slackChannel, "New version of "+miner)
 				sendSlackMessage(slackChannel, githubResponse.Html_url)
 			}
 			var assets []Asset = githubResponse.Assets
@@ -241,12 +239,12 @@ func githubResourceUpdate(url string) {
 				time_asset_created, _ := time.Parse("2006-01-02T15:04:05Z", asset.Created_at)
 				fmt.Println("Asset Creation Time: " + time_asset_created.String())
 				if time_last_run.Before(time_asset_created) && time_now.After(time_asset_created) {
-					sendSlackMessage(slackChannel, "The latest release of "+repoName+" has been updated.")
+					sendSlackMessage(slackChannel, "The latest release of "+miner+" has been updated.")
 					sendSlackMessage(slackChannel, asset.Name+":"+asset.Url)
 				}
 			}
 		} else if res.StatusCode == 304 {
-			fmt.Println("No update for " + repoName)
+			fmt.Println("No update for " + miner)
 		} else {
 			fmt.Printf("The HTTP request failed with error %d: %s\n", res.StatusCode, http.StatusText(res.StatusCode))
 		}
@@ -298,6 +296,44 @@ func getLastRunTime() string {
 		panic("There was an error with DynamoDB")
 	}
 	return *result.Items[0]["Value"].S
+}
+
+func readMinerTable() []map[string]dynamodb.AttributeValue {
+	cfg, err := external.LoadDefaultAWSConfig()
+	if err != nil {
+		panic("unable to load SDK config, " + err.Error())
+	}
+
+	cfg.Region = endpoints.UsEast1RegionID
+
+	svc := dynamodb.New(cfg)
+	input := &dynamodb.ScanInput{
+		TableName: aws.String("Miners"),
+	}
+
+	req := svc.ScanRequest(input)
+	result, err := req.Send()
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			switch aerr.Code() {
+			case dynamodb.ErrCodeProvisionedThroughputExceededException:
+				fmt.Println(dynamodb.ErrCodeProvisionedThroughputExceededException, aerr.Error())
+			case dynamodb.ErrCodeResourceNotFoundException:
+				fmt.Println(dynamodb.ErrCodeResourceNotFoundException, aerr.Error())
+			//case dynamodb.ErrCodeRequestLimitExceeded:
+			//	fmt.Println(dynamodb.ErrCodeRequestLimitExceeded, aerr.Error())
+			case dynamodb.ErrCodeInternalServerError:
+				fmt.Println(dynamodb.ErrCodeInternalServerError, aerr.Error())
+			default:
+				fmt.Println(aerr.Error())
+			}
+		} else {
+			// Not an AWS error
+			fmt.Println(err.Error())
+		}
+		panic("There was an error with DynamoDB")
+	}
+	return result.Items
 }
 
 func writeLastRunTime() {
@@ -360,30 +396,35 @@ func writeLastRunTime() {
 }
 
 func checkMiners() (string, error) {
-	githubResourceUpdate(xmrStakLocation)
-	githubResourceUpdate(xmrRigAmdLocation)
-	githubResourceUpdate(xmrRigNvidiaLocation)
-	githubResourceUpdate(finminerEthLocation)
-	githubResourceUpdate(claymoreEthLocation)
-	githubResourceUpdate(claymoreZecLocation)
-	githubResourceUpdate(excavatorZecLocation)
-	githubResourceUpdate(ewbfZecLocation)
-	githubResourceUpdate(sgminerZecLocation)
-	githubResourceUpdate(nheqZecLocation)
-	githubResourceUpdate(rhminerPascalLocation)
-	githubResourceUpdate(claymoreXmrLocation)
-	githubResourceUpdate(trexRavencoinLocation)
-	githubResourceUpdate(avermoreRavencoinLocation)
-	githubResourceUpdate(nanominerLocation)
-	githubResourceUpdate(suprminerLocation)
-	githubResourceUpdate(wildrigLocation)
-	githubResourceUpdate(beamLocation)
+	miners := readMinerTable()
+	for _, miner := range miners {
+		queryGithub(*miner["GithubOwner"].S, *miner["Name"].S)
+	}
+	//githubResourceUpdate(xmrStakLocation)
+	//githubResourceUpdate(xmrRigAmdLocation)
+	//githubResourceUpdate(xmrRigNvidiaLocation)
+	//githubResourceUpdate(finminerEthLocation)
+	//githubResourceUpdate(claymoreEthLocation)
+	//githubResourceUpdate(claymoreZecLocation)
+	//githubResourceUpdate(excavatorZecLocation)
+	//githubResourceUpdate(ewbfZecLocation)
+	//githubResourceUpdate(sgminerZecLocation)
+	//githubResourceUpdate(nheqZecLocation)
+	//githubResourceUpdate(rhminerPascalLocation)
+	//githubResourceUpdate(claymoreXmrLocation)
+	//githubResourceUpdate(trexRavencoinLocation)
+	//githubResourceUpdate(avermoreRavencoinLocation)
+	//githubResourceUpdate(nanominerLocation)
+	//githubResourceUpdate(suprminerLocation)
+	//githubResourceUpdate(wildrigLocation)
+	//githubResourceUpdate(beamLocation)
 	writeLastRunTime()
 	return "Successful!", nil
 }
 
 func main() {
-	githubResourceUpdate(wildrigLocation)
+	//githubResourceUpdate(wildrigLocation)
+	//checkMiners()
 	//channel := make(chan string, 10)
 	//dependency = <-channel2
 	//if softwareUpdate(castXmrLocation) {
@@ -395,9 +436,8 @@ func main() {
 	//dependency := <-channel
 	//log.Debug("Dependency: ", dependency)
 	// Make the handler available for Remote Procedure Call by AWS Lambda
-	//	lambda.Start(checkMiners)
+	lambda.Start(checkMiners)
 
 	// TODO: Implement handler for repos with no releases.
 	//githubResourceUpdate(grinminerLocation)
-
 }
