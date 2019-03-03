@@ -1,0 +1,17 @@
+version: 0.2
+run-as: root
+phases:
+  install:
+    commands:
+      - go get -u github.com/golang/lint/golint
+      - go get -u github.com/sirupsen/logrus
+      - go get -u github.com/aws/aws-lambda-go/lambda
+      - go get -u github.com/aws/aws-sdk-go-v2/aws
+      - go get -u github.com/nlopes/slack
+      - go get -u golang.org/x/net/html
+  pre_build:
+    commands:
+      - golint -set_exit_status
+  build:
+    commands:
+      - GOOS=linux GOARCH=amd64 go build -o cmd/main forgesense/main.go
