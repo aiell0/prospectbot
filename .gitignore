@@ -1,4 +1,6 @@
 vendor/
+bin/
+src/
 .serverless
 .terraform
 *.tfstate
