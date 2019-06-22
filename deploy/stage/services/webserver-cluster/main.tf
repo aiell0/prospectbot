@@ -7,10 +7,20 @@ data "aws_availability_zones" "all" {}
 data "template_file" "user_date" {
   template = "${file("user-data.sh")}"
 
-  vars {
+  vars = {
     server_port = "${var.server_port}"
     db_address  = "${data.terraform_remote_state.db.address}"
     db_port     = "${data.terraform_remote_state.db.port}"
+  }
+}
+
+data "terraform_remote_state" "db" {
+  backend = "s3"
+
+  config = {
+    bucket = "prospectbot-terraform-state"
+    key    = "stage/data-stores/mysql/terraform.tfstate"
+    region = "us-east-1"
   }
 }
 
