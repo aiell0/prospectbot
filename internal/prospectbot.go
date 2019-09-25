@@ -3,6 +3,7 @@ package prospectbot
 import (
 	"encoding/json"
 	"fmt"
+	"context"
 	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"net/http"
@@ -250,7 +251,7 @@ func getLastRunTime() string {
 	}
 
 	req := svc.QueryRequest(input)
-	result, err := req.Send()
+	result, err := req.Send(context.Background())
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok {
 			switch aerr.Code() {
@@ -288,7 +289,7 @@ func readMinerTable() []map[string]dynamodb.AttributeValue {
 	}
 
 	req := svc.ScanRequest(input)
-	result, err := req.Send()
+	result, err := req.Send(context.Background())
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok {
 			switch aerr.Code() {
@@ -341,7 +342,7 @@ func writeLastRunTime() {
 	}
 
 	req := svc.PutItemRequest(input)
-	result, err := req.Send()
+	result, err := req.Send(context.Background())
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok {
 			switch aerr.Code() {
