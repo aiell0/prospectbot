@@ -1,4 +1,5 @@
 vendor/
+pkg/
 bin/
 src/
 .serverless
