@@ -3,12 +3,12 @@ frameworkVersion: ">=1.28.0 <2.0.0"
 functions: 
   forgesense: 
     handler: cmd/main
-    name: prospectbot
+    name: prospectbot-${self:provider.stage}
     events:
       - schedule:
           rate: rate(10 minutes)
           enabled: true
-          name: prospectbot-github-miner-check
+          name: run-prospectbot-${opt:stage, 'dev'}
           description: 'Checks Github for new software releases'
 package:
  exclude:
@@ -23,21 +23,18 @@ provider:
   deploymentPrefix: forgesense
   memorySize: 512
   name: aws
-  profile: serverless
-  region: us-east-1
+  region: ${opt:region, 'us-east-1'}
   runtime: go1.x
-  stage: dev
+  stage: ${opt:stage, 'dev'}
   timeout: 60
   versionFunctions: false
   vpc: 
     securityGroupIds: 
       - sg-0a004076bb0b36504
     subnetIds: 
-      - subnet-501d896c
       - subnet-0fd39854
       - subnet-c436a7a1
       - subnet-d61aa3da
-      - subnet-dd89d5f0
   iamRoleStatements:
       - Effect: "Allow"
         Action:
