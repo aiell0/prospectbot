@@ -8,7 +8,7 @@ functions:
       - schedule:
           rate: rate(10 minutes)
           enabled: true
-          name: prospectbot-github-miner-check
+          name: run-prospectbot-${opt:stage, 'dev'}
           description: 'Checks Github for new software releases'
 package:
  exclude:
@@ -23,8 +23,7 @@ provider:
   deploymentPrefix: forgesense
   memorySize: 512
   name: aws
-  profile: serverless
-  region: us-east-1
+  region: ${opt:region, 'us-east-1'}
   runtime: go1.x
   stage: ${opt:stage, 'dev'}
   timeout: 60
