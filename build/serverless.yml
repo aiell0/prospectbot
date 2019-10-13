@@ -3,6 +3,7 @@ frameworkVersion: ">=1.28.0 <2.0.0"
 functions: 
   forgesense: 
     handler: cmd/main
+    onError: !Ref DLQ
     name: prospectbot-${self:provider.stage}
     events:
       - schedule:
@@ -45,4 +46,24 @@ provider:
           - "dynamodb:UpdateItem"
           - "dynamodb:Scan"
         Resource: "*"
+      - Effect: "Allow"
+        Action:
+          - "sns:Publish"
+        Resource: arn:aws:sns:${opt:region, 'us-east-1'}:385445628596:prospectbot-${opt:stage, 'dev'}-dlq
 service: prospectbot
+resources:
+  Resources:
+    DLQ:
+      Type: AWS::SNS::Topic
+      Properties:
+        DisplayName: prospectbot-${opt:stage, 'dev'}-dlq
+        KmsMasterKeyId: d47201dc-0660-4c8d-80de-58ec583bc48b
+        TopicName: prospectbot-${opt:stage, 'dev'}-dlq
+    EmailSubscription:
+      Type: AWS::SNS::Subscription
+      Properties:
+        Endpoint: lawrence.aiello@laiello.com
+        Protocol: email
+        TopicArn: !Ref DLQ
+
+
