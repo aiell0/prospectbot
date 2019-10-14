@@ -1,7 +1,7 @@
 --- 
 frameworkVersion: ">=1.28.0 <2.0.0"
 functions: 
-  forgesense: 
+  prospectbot:
     handler: cmd/main
     onError: !Ref DLQ
     name: prospectbot-${self:provider.stage}
@@ -21,7 +21,7 @@ provider:
   deploymentBucket: 
     name: serverless-deployment-stacks
     serverSideEncryption: AES256
-  deploymentPrefix: forgesense
+  deploymentPrefix: prospectbot
   memorySize: 512
   name: aws
   region: ${opt:region, 'us-east-1'}
@@ -65,5 +65,10 @@ resources:
         Endpoint: lawrence.aiello@laiello.com
         Protocol: email
         TopicArn: !Ref DLQ
-
+    SMSSubscription:
+      Type: AWS::SNS::Subscription
+      Properties:
+        Endpoint: 2028536141
+        Protocol: sms
+        TopicArn: !Ref DLQ
 
