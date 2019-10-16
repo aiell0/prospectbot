@@ -2,6 +2,7 @@ vendor/
 pkg/
 bin/
 src/
+cmd/prospectbot
 .serverless
 .terraform
 *.tfstate

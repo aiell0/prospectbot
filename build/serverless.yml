@@ -3,8 +3,13 @@ frameworkVersion: ">=1.28.0 <2.0.0"
 functions: 
   prospectbot:
     handler: cmd/prospectbot
+    description: ${self:custom.description.${self:provider.stage}}
     onError: !Ref DLQ
     name: prospectbot-${self:provider.stage}
+    environment:
+      SLACK_CHANNEL: ${self:custom.slackChannel.${self:provider.stage}}
+      DYNAMODB_TABLE: ${self:custom.dynamoDbTable.${self:provider.stage}}
+      MINERS_TABLE: ${self:custom.minerTable.${self:provider.stage}}
     events:
       - schedule:
           rate: rate(10 minutes)
@@ -51,6 +56,23 @@ provider:
           - "sns:Publish"
         Resource: arn:aws:sns:${opt:region, 'us-east-1'}:385445628596:prospectbot-${opt:stage, 'dev'}-dlq
 service: prospectbot
+custom:
+  description:
+    dev: "Development version of Prospectbot."
+    qa: "QA Testing for Release Candidates of Prospectbot."
+    prod: "Production Prospectbot."
+  minerTable:
+    dev: "miners-dev"
+    qa: "miners-qa"
+    prod: "miners-prod"
+  dynamoDbTable:
+    dev: "prospectbot-dev"
+    qa: "prospectbot-qa"
+    prod: "prospectbot-prod"
+  slackChannel:
+    dev: "CPEN4FNM6"
+    qa: "CPEN4N648"
+    prod: "CPGHX0V2T"
 resources:
   Resources:
     DLQ:
@@ -71,4 +93,5 @@ resources:
         Endpoint: 2028536141
         Protocol: sms
         TopicArn: !Ref DLQ
+
 

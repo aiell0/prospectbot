@@ -3,12 +3,13 @@ package prospectbot
 import (
 	"encoding/json"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"strings"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/awserr"
@@ -19,9 +20,10 @@ import (
 	"golang.org/x/net/html"
 )
 
-const bucketName string = "blockforge-infrastructure"
-const slackChannel string = "DC6V5T82E"
-const slackToken string = "xoxa-410442786752-414276217760-414753865764-e6e4ea550bd22c5c19a3c8eeef3fb2e4"
+var slackChannel string = os.Getenv("SLACK_CHANNEL")
+var slackToken string = "xoxa-410442786752-414276217760-414753865764-e6e4ea550bd22c5c19a3c8eeef3fb2e4"
+var systemTable string = os.Getenv("DYNAMODB_TABLE")
+var minerTable string = os.Getenv("MINERS_TABLE")
 
 func init() {
 	log.SetFormatter(&log.TextFormatter{
@@ -237,7 +239,7 @@ func getLastRunTime() string {
 
 	svc := dynamodb.New(cfg)
 	input := &dynamodb.QueryInput{
-		TableName: aws.String("FinSense"),
+		TableName: aws.String(systemTable),
 		ExpressionAttributeNames: map[string]string{
 			"#K": "Key",
 		},
@@ -284,7 +286,7 @@ func readMinerTable() []map[string]dynamodb.AttributeValue {
 
 	svc := dynamodb.New(cfg)
 	input := &dynamodb.ScanInput{
-		TableName: aws.String("Miners"),
+		TableName: aws.String(minerTable),
 	}
 
 	req := svc.ScanRequest(input)
@@ -337,7 +339,7 @@ func writeLastRunTime() {
 				S: aws.String(currentTimeGMT),
 			},
 		},
-		TableName: aws.String("FinSense"),
+		TableName: aws.String(systemTable),
 	}
 
 	req := svc.PutItemRequest(input)
