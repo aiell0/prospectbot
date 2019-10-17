@@ -16,12 +16,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws/endpoints"
 	"github.com/aws/aws-sdk-go-v2/aws/external"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/nlopes/slack"
 	"golang.org/x/net/html"
 )
 
 var slackChannel string = os.Getenv("SLACK_CHANNEL")
-var slackToken string = "xoxa-410442786752-414276217760-414753865764-e6e4ea550bd22c5c19a3c8eeef3fb2e4"
 var systemTable string = os.Getenv("DYNAMODB_TABLE")
 var minerTable string = os.Getenv("MINERS_TABLE")
 
@@ -120,6 +120,22 @@ type GithubResponse struct {
 }
 
 func sendSlackMessage(channel string, message string) {
+	cfg, err := external.LoadDefaultAWSConfig()
+	if err != nil {
+		panic("unable to load SDK config, " + err.Error())
+	}
+
+	cfg.Region = endpoints.UsEast1RegionID
+
+	svc := ssm.New(cfg)
+	input := &ssm.GetParameterInput{
+		Name:           aws.String("/slack/access-token"),
+		WithDecryption: aws.Bool(true),
+	}
+	slackToken, err := svc.GetParameter(input)
+	if err != nil {
+		exitErrorf("There was a problem getting the Slack Access Token.")
+	}
 	api := slack.New(slackToken)
 	channelID, timestamp, err := api.PostMessage(channel, slack.MsgOptionText(message, false))
 	if err != nil {
