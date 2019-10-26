@@ -4,6 +4,9 @@ bin/
 src/
 .serverless
 .terraform
+node_modules/
+errors
+prospectbot
 *.tfstate
 *.tfstate.backup
 
