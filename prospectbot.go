@@ -1,20 +1,24 @@
-package prospectbot
+package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 
+	log "github.com/sirupsen/logrus"
+
+	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/awserr"
 	"github.com/aws/aws-sdk-go-v2/aws/endpoints"
 	"github.com/aws/aws-sdk-go-v2/aws/external"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/nlopes/slack"
 	"golang.org/x/net/html"
 )
@@ -30,12 +34,6 @@ func init() {
 	})
 	log.SetLevel(log.DebugLevel)
 	log.Debug("Initialization.")
-}
-
-func exitErrorf(msg string, args ...interface{}) {
-	fmt.Fprintf(os.Stderr, msg+"\n", args...)
-	log.Fatal(msg)
-	os.Exit(1)
 }
 
 type Author struct {
@@ -371,11 +369,52 @@ func writeLastRunTime() {
 	fmt.Println(result)
 }
 
-func CheckMiners() (string, error) {
+func exitErrorf(msg string, args ...interface{}) {
+	fmt.Fprintf(os.Stderr, msg+"\n", args...)
+	sendSQSMessage(msg)
+	log.Fatal(msg)
+	os.Exit(1)
+}
+
+func sendSQSMessage(message string) {
+	sess := session.Must(session.NewSession())
+	sqs := sqs.New(sess)
+
+	// abort the upload if it takes more than the passed in timeout.
+	ctx := context.Background()
+	var cancelFn func()
+	if timeout > 0 {
+		ctx, cancelFn = context.WithTimeout(ctx, timeout)
+		logDebug("AWS Context timeout.")
+	}
+
+	//TODO: Get queue url dynamically
+	_, err := sqs.SendMessage(ctx, &sqs.SendMessageInput{
+		DelaySeconds: aws.Int64(10),
+		QueueUrl:     "https://sqs.us-east-1.amazonaws.com/385445628596/prospectbot-errors-dev",
+		MessageBody:  aws.String("Message from prospectbot"),
+	})
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok && aerr.Code() == request.CanceledErrorCode {
+			// If the SDK can determine the request or retry delay was canceled
+			// by a context the CanceledErrorCode error code will be returned.
+			fmt.Fprintf(os.Stderr, "send canceled due to timeout, %v\n", err)
+		} else {
+			fmt.Fprintf(os.Stderr, "failed to send message:  %v\n", err)
+		}
+		os.Exit(1)
+	}
+}
+
+func checkMiners() (string, error) {
 	miners := readMinerTable()
 	for _, miner := range miners {
 		queryGithub(*miner["GithubOwner"].S, *miner["Name"].S)
 	}
 	writeLastRunTime()
 	return "Successful!", nil
+}
+
+func main() {
+	lambda.Start(checkMiners)
 }

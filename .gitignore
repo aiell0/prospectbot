@@ -2,11 +2,10 @@ vendor/
 pkg/
 bin/
 src/
+cmd/
 .serverless
 .terraform
 node_modules/
-errors
-prospectbot
 *.tfstate
 *.tfstate.backup
 

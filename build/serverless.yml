@@ -1,7 +1,7 @@
 --- 
 frameworkVersion: ">=1.28.0 <2.0.0"
 functions: 
-  errorHandler:
+  error:
     handler: cmd/errors
     onError: !GetAtt ErrorQueue.Arn
     name: errorHandler-${self:provider.stage}
@@ -10,6 +10,8 @@ functions:
         Action:
           - sqs:SendMessage
           - sqs:ReceiveMessage
+          - sqs:DeleteMessage
+          - sqs:GetQueueAttributes
         Resource: 
           - !GetAtt ErrorQueue.Arn
     events:
