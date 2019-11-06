@@ -1,10 +1,21 @@
 --- 
 frameworkVersion: ">=1.28.0 <2.0.0"
+custom:
+  SLACK_CHANNEL:
+    environment:
+      test: CPEN4FNM6
+      dev: CPEN4FNM6
+      qa: CPEN4N648
+      prod: CPGHX0V2T
+  slacktoken: ${ssm:/slack/access-token~false}
 functions: 
   error:
     handler: cmd/errors
     onError: !GetAtt ErrorQueue.Arn
     name: errorHandler-${self:provider.stage}
+    environment:
+      SLACK_CHANNEL: CPUF4Q8LT
+      SLACK_TOKEN: ${self:custom.slacktoken}
     iamRoleStatements:
       - Effect: Allow
         Action:
@@ -21,6 +32,9 @@ functions:
     handler: cmd/prospectbot
     onError: !GetAtt ErrorQueue.Arn
     name: prospectbot-${self:provider.stage}
+    environment:
+      SLACK_CHANNEL: ${self:custom.SLACK_CHANNEL.environment.${self:provider.stage}}
+      SLACK_TOKEN: ${self:custom.slacktoken}
     iamRoleStatements:
       - Effect: Allow
         Action:
