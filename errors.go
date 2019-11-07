@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"os"
 
@@ -34,12 +35,16 @@ func getSlackToken() {
 
 	// Set the AWS Region that the service clients should use
 	cfg.Region = endpoints.UsEast1RegionID
-	fmt.Println(os.Getenv("SLACK_TOKEN"))
 	svc := kms.New(cfg)
 	encryptionContext := make(map[string]string)
 	encryptionContext["PARAMETER_ARN"] = "arn:aws:ssm:us-east-1:385445628596:parameter/slack/access-token"
+	decoded, err := base64.StdEncoding.DecodeString(os.Getenv("SLACK_TOKEN"))
+	if err != nil {
+		fmt.Println("decode error:", err)
+		return
+	}
 	input := &kms.DecryptInput{
-		CiphertextBlob:    []byte(os.Getenv("SLACK_TOKEN")),
+		CiphertextBlob:    []byte(string(decoded)),
 		EncryptionContext: encryptionContext,
 	}
 
@@ -75,7 +80,7 @@ func getSlackToken() {
 		return
 	}
 
-	fmt.Println(result)
+	fmt.Println(string(result.Plaintext))
 }
 
 func errMsg(ctx context.Context, sqsEvent events.SQSEvent) (string, error) {

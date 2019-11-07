@@ -19,6 +19,11 @@ functions:
     iamRoleStatements:
       - Effect: Allow
         Action:
+          - kms:Decrypt
+        Resource:
+          - "arn:aws:kms:us-east-1:385445628596:key/d47201dc-0660-4c8d-80de-58ec583bc48b"
+      - Effect: Allow
+        Action:
           - sqs:SendMessage
           - sqs:ReceiveMessage
           - sqs:DeleteMessage
