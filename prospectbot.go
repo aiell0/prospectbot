@@ -1,7 +1,7 @@
 package main
 
 import (
-	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -18,14 +18,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws/endpoints"
 	"github.com/aws/aws-sdk-go-v2/aws/external"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/nlopes/slack"
 	"golang.org/x/net/html"
 )
-
-const bucketName string = "blockforge-infrastructure"
-const slackChannel string = "DC6V5T82E"
-const slackToken string = "xoxa-410442786752-414276217760-414753865764-e6e4ea550bd22c5c19a3c8eeef3fb2e4"
 
 func init() {
 	log.SetFormatter(&log.TextFormatter{
@@ -115,7 +112,62 @@ type GithubResponse struct {
 	Assets           []Asset
 }
 
+func getSlackToken() string {
+	cfg, err := external.LoadDefaultAWSConfig()
+	if err != nil {
+		panic("unable to load SDK config, " + err.Error())
+	}
+
+	// Set the AWS Region that the service clients should use
+	cfg.Region = endpoints.UsEast1RegionID
+	svc := kms.New(cfg)
+	encryptionContext := make(map[string]string)
+	encryptionContext["PARAMETER_ARN"] = "arn:aws:ssm:us-east-1:385445628596:parameter/slack/access-token"
+	decoded, err := base64.StdEncoding.DecodeString(os.Getenv("SLACK_TOKEN"))
+	if err != nil {
+		fmt.Println("decode error:", err)
+	}
+	input := &kms.DecryptInput{
+		CiphertextBlob:    []byte(string(decoded)),
+		EncryptionContext: encryptionContext,
+	}
+
+	req := svc.DecryptRequest(input)
+	result, err := req.Send()
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			switch aerr.Code() {
+			case kms.ErrCodeNotFoundException:
+				fmt.Println(kms.ErrCodeNotFoundException, aerr.Error())
+			case kms.ErrCodeDisabledException:
+				fmt.Println(kms.ErrCodeDisabledException, aerr.Error())
+			case kms.ErrCodeInvalidCiphertextException:
+				fmt.Println(kms.ErrCodeInvalidCiphertextException, aerr.Error())
+			case kms.ErrCodeKeyUnavailableException:
+				fmt.Println(kms.ErrCodeKeyUnavailableException, aerr.Error())
+			case kms.ErrCodeDependencyTimeoutException:
+				fmt.Println(kms.ErrCodeDependencyTimeoutException, aerr.Error())
+			case kms.ErrCodeInvalidGrantTokenException:
+				fmt.Println(kms.ErrCodeInvalidGrantTokenException, aerr.Error())
+			case kms.ErrCodeInternalException:
+				fmt.Println(kms.ErrCodeInternalException, aerr.Error())
+			case kms.ErrCodeInvalidStateException:
+				fmt.Println(kms.ErrCodeInvalidStateException, aerr.Error())
+			default:
+				fmt.Println(aerr.Error())
+			}
+		} else {
+			// Print the error, cast err to awserr.Error to get the Code and
+			// Message from an error.
+			fmt.Println(err.Error())
+		}
+	}
+
+	return string(result.Plaintext)
+}
+
 func sendSlackMessage(channel string, message string) {
+	slackToken := getSlackToken()
 	api := slack.New(slackToken)
 	channelID, timestamp, err := api.PostMessage(channel, slack.MsgOptionText(message, false))
 	if err != nil {
@@ -160,7 +212,7 @@ func readFileServer(url string, dependency chan string) {
 				lr_t, _ := time.Parse("Mon, 02 Jan 2006 15:04:05 MST", lastRunTime)
 				file_t, _ := time.Parse("Mon, 02 Jan 2006 15:04:05 MST", fileTime)
 				if lr_t.Before(file_t) {
-					sendSlackMessage(slackChannel, "New version of software available at file server: "+url)
+					sendSlackMessage(os.Getenv("SLACK_CHANNEL"), "New version of software available at file server: "+url)
 				}
 			}
 			for c := n.LastChild; c != nil; c = c.PrevSibling {
@@ -205,16 +257,16 @@ func queryGithub(owner string, miner string) {
 			time_published, _ := time.Parse("2006-01-02T15:04:05Z", githubResponse.Published_at)
 			time_last_run, _ := time.Parse("Mon, 02 Jan 2006 15:04:05 MST", lastRunTime)
 			if time_last_run.Before(time_published) && time_now.After(time_published) {
-				sendSlackMessage(slackChannel, "New version of "+miner)
-				sendSlackMessage(slackChannel, githubResponse.Html_url)
+				sendSlackMessage(os.Getenv("SLACK_CHANNEL"), "New version of "+miner)
+				sendSlackMessage(os.Getenv("SLACK_CHANNEL"), githubResponse.Html_url)
 			}
 			var assets []Asset = githubResponse.Assets
 			for _, asset := range assets {
 				time_asset_created, _ := time.Parse("2006-01-02T15:04:05Z", asset.Created_at)
 				fmt.Println("Asset Creation Time: " + time_asset_created.String())
 				if time_last_run.Before(time_asset_created) && time_now.After(time_asset_created) {
-					sendSlackMessage(slackChannel, "The latest release of "+miner+" has been updated.")
-					sendSlackMessage(slackChannel, asset.Name+":"+asset.Url)
+					sendSlackMessage(os.Getenv("SLACK_CHANNEL"), "The latest release of "+miner+" has been updated.")
+					sendSlackMessage(os.Getenv("SLACK_CHANNEL"), asset.Name+":"+asset.Url)
 				}
 			}
 		} else if res.StatusCode == 304 {
@@ -377,33 +429,32 @@ func exitErrorf(msg string, args ...interface{}) {
 }
 
 func sendSQSMessage(message string) {
-	sess := session.Must(session.NewSession())
-	sqs := sqs.New(sess)
+	cfg, err := external.LoadDefaultAWSConfig()
+	if err != nil {
+		panic("unable to load SDK config, " + err.Error())
+	}
+
+	// Set the AWS Region that the service clients should use
+	cfg.Region = endpoints.UsEast1RegionID
+	svc := sqs.New(cfg)
+
+	input := &sqs.SendMessageInput{
+		DelaySeconds: aws.Int64(10),
+		QueueUrl:     aws.String("https://sqs.us-east-1.amazonaws.com/385445628596/prospectbot-errors-dev"),
+		MessageBody:  aws.String("Message from prospectbot"),
+	}
 
 	// abort the upload if it takes more than the passed in timeout.
-	ctx := context.Background()
-	var cancelFn func()
-	if timeout > 0 {
-		ctx, cancelFn = context.WithTimeout(ctx, timeout)
-		logDebug("AWS Context timeout.")
-	}
-
 	//TODO: Get queue url dynamically
-	_, err := sqs.SendMessage(ctx, &sqs.SendMessageInput{
-		DelaySeconds: aws.Int64(10),
-		QueueUrl:     "https://sqs.us-east-1.amazonaws.com/385445628596/prospectbot-errors-dev",
-		MessageBody:  aws.String("Message from prospectbot"),
-	})
+	req := svc.SendMessageRequest(input)
+	resp, err := req.Send()
 	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok && aerr.Code() == request.CanceledErrorCode {
-			// If the SDK can determine the request or retry delay was canceled
-			// by a context the CanceledErrorCode error code will be returned.
-			fmt.Fprintf(os.Stderr, "send canceled due to timeout, %v\n", err)
-		} else {
-			fmt.Fprintf(os.Stderr, "failed to send message:  %v\n", err)
-		}
-		os.Exit(1)
+		fmt.Fprintf(os.Stderr, "send canceled due to timeout, %v\n", err)
+	} else {
+		fmt.Fprintf(os.Stderr, "failed to send message:  %v\n", err)
 	}
+	fmt.Println(resp)
+	os.Exit(1)
 }
 
 func checkMiners() (string, error) {
