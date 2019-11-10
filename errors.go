@@ -12,6 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws/endpoints"
 	"github.com/aws/aws-sdk-go-v2/aws/external"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
+	"github.com/nlopes/slack"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -27,7 +28,7 @@ func init() {
 	}
 }
 
-func getSlackToken() {
+func getSlackToken() string {
 	cfg, err := external.LoadDefaultAWSConfig()
 	if err != nil {
 		panic("unable to load SDK config, " + err.Error())
@@ -41,7 +42,6 @@ func getSlackToken() {
 	decoded, err := base64.StdEncoding.DecodeString(os.Getenv("SLACK_TOKEN"))
 	if err != nil {
 		fmt.Println("decode error:", err)
-		return
 	}
 	input := &kms.DecryptInput{
 		CiphertextBlob:    []byte(string(decoded)),
@@ -77,20 +77,42 @@ func getSlackToken() {
 			// Message from an error.
 			fmt.Println(err.Error())
 		}
-		return
 	}
 
-	fmt.Println(string(result.Plaintext))
+	return string(result.Plaintext)
 }
 
 func errMsg(ctx context.Context, sqsEvent events.SQSEvent) (string, error) {
 	for _, message := range sqsEvent.Records {
 		fmt.Printf("The message %s for event source %s = %s \n", message.MessageId, message.EventSource, message.Body)
+		sendSlackMessage(message.Body)
 	}
-	getSlackToken()
-	// send to slack
+
 	// exit lambda runtime
 	return "SUCCESS", nil
+}
+
+func exitErrorf(msg string, args ...interface{}) {
+	fmt.Fprintf(os.Stderr, msg+"\n", args...)
+	log.Fatal(msg)
+	os.Exit(1)
+}
+
+func sendSlackMessage(message string) {
+	slackToken := getSlackToken()
+	log.Debug(slackToken)
+	api := slack.New(slackToken)
+	slackChannel := os.Getenv("SLACK_CHANNEL")
+	channelID, timestamp, err := api.PostMessage(slackChannel, slack.MsgOptionText(message, false))
+	if err != nil {
+		exitErrorf("Sending a message to Slack failed, %v", err)
+	}
+
+	// Not sure how to handle this in Golang yet.
+	_ = timestamp
+
+	log.WithFields(log.Fields{"channel_id": channelID})
+	log.Info("Slack message sent successfully.")
 }
 
 func main() {

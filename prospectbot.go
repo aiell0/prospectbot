@@ -439,22 +439,19 @@ func sendSQSMessage(message string) {
 	svc := sqs.New(cfg)
 
 	input := &sqs.SendMessageInput{
-		DelaySeconds: aws.Int64(10),
+		DelaySeconds: aws.Int64(1),
 		QueueUrl:     aws.String("https://sqs.us-east-1.amazonaws.com/385445628596/prospectbot-errors-dev"),
-		MessageBody:  aws.String("Message from prospectbot"),
+		MessageBody:  aws.String(message),
 	}
 
-	// abort the upload if it takes more than the passed in timeout.
 	//TODO: Get queue url dynamically
 	req := svc.SendMessageRequest(input)
 	resp, err := req.Send()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "send canceled due to timeout, %v\n", err)
-	} else {
-		fmt.Fprintf(os.Stderr, "failed to send message:  %v\n", err)
+		exitErrorf("failed to send message: %v\n", err)
 	}
-	fmt.Println(resp)
-	os.Exit(1)
+	log.Info("Error message successfully sent to SQS.")
+	log.Debug(resp)
 }
 
 func checkMiners() (string, error) {
