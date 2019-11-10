@@ -100,7 +100,6 @@ func exitErrorf(msg string, args ...interface{}) {
 
 func sendSlackMessage(message string) {
 	slackToken := getSlackToken()
-	log.Debug(slackToken)
 	api := slack.New(slackToken)
 	slackChannel := os.Getenv("SLACK_CHANNEL")
 	channelID, timestamp, err := api.PostMessage(slackChannel, slack.MsgOptionText(message, false))
