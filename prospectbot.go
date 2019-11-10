@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -14,7 +15,6 @@ import (
 
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/aws/awserr"
 	"github.com/aws/aws-sdk-go-v2/aws/endpoints"
 	"github.com/aws/aws-sdk-go-v2/aws/external"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
@@ -115,7 +115,7 @@ type GithubResponse struct {
 func getSlackToken() string {
 	cfg, err := external.LoadDefaultAWSConfig()
 	if err != nil {
-		panic("unable to load SDK config, " + err.Error())
+		exitErrorf("unable to load SDK config, %v", err)
 	}
 
 	// Set the AWS Region that the service clients should use
@@ -135,34 +135,8 @@ func getSlackToken() string {
 	req := svc.DecryptRequest(input)
 	result, err := req.Send()
 	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			switch aerr.Code() {
-			case kms.ErrCodeNotFoundException:
-				fmt.Println(kms.ErrCodeNotFoundException, aerr.Error())
-			case kms.ErrCodeDisabledException:
-				fmt.Println(kms.ErrCodeDisabledException, aerr.Error())
-			case kms.ErrCodeInvalidCiphertextException:
-				fmt.Println(kms.ErrCodeInvalidCiphertextException, aerr.Error())
-			case kms.ErrCodeKeyUnavailableException:
-				fmt.Println(kms.ErrCodeKeyUnavailableException, aerr.Error())
-			case kms.ErrCodeDependencyTimeoutException:
-				fmt.Println(kms.ErrCodeDependencyTimeoutException, aerr.Error())
-			case kms.ErrCodeInvalidGrantTokenException:
-				fmt.Println(kms.ErrCodeInvalidGrantTokenException, aerr.Error())
-			case kms.ErrCodeInternalException:
-				fmt.Println(kms.ErrCodeInternalException, aerr.Error())
-			case kms.ErrCodeInvalidStateException:
-				fmt.Println(kms.ErrCodeInvalidStateException, aerr.Error())
-			default:
-				fmt.Println(aerr.Error())
-			}
-		} else {
-			// Print the error, cast err to awserr.Error to get the Code and
-			// Message from an error.
-			fmt.Println(err.Error())
-		}
+		exitErrorf("KMS Error: %v", err)
 	}
-
 	return string(result.Plaintext)
 }
 
@@ -173,11 +147,7 @@ func sendSlackMessage(channel string, message string) {
 	if err != nil {
 		exitErrorf("Sending a message to Slack failed, %v", err)
 	}
-
-	// Not sure how to handle this in Golang yet.
-	_ = timestamp
-
-	log.WithFields(log.Fields{"channel_id": channelID})
+	log.WithFields(log.Fields{"channel_id": channelID, "timestamp": timestamp})
 	log.Info("Slack message sent successfully.")
 }
 
@@ -235,16 +205,17 @@ func queryGithub(owner string, miner string) {
 	}
 	defer res.Body.Close()
 	htmlData, err := ioutil.ReadAll(res.Body)
-	serverType := res.Header.Get("Server")
-	if serverType == "GitHub.com" {
-		fmt.Println("Server is GitHub.")
-		fmt.Println("API Calls Remaining: " + res.Header.Get("X-RateLimit-Remaining"))
-	} else {
-		panic("Unsupported server type. Only GitHub is supported.")
-	}
 	if err != nil {
-		fmt.Printf("Failed with error %s\n", err)
-		os.Exit(1)
+		exitErrorf("Failed with error %s\n", err)
+	}
+	//serverType := res.Header.Get("Server")
+	rateLimitRemaining := res.Header.Get("X-RateLimit-Remaining")
+	i, err := strconv.Atoi(rateLimitRemaining)
+	if err != nil {
+		exitErrorf("Failed with error %s\n", err)
+	}
+	if i < 10 {
+		sendSQSMessage("WARNING: API Rate: " + rateLimitRemaining)
 	}
 
 	var githubResponse GithubResponse
@@ -272,7 +243,8 @@ func queryGithub(owner string, miner string) {
 		} else if res.StatusCode == 304 {
 			fmt.Println("No update for " + miner)
 		} else {
-			fmt.Printf("The HTTP request failed with error %d: %s\n", res.StatusCode, http.StatusText(res.StatusCode))
+			sendSQSMessage("Uncaught HTTP Error: " + http.StatusText(res.StatusCode))
+			//fmt.Printf("The HTTP request failed with error %d: %s\n", res.StatusCode, http.StatusText(res.StatusCode))
 		}
 	}
 }
@@ -284,10 +256,11 @@ func getLastRunTime() string {
 	}
 
 	cfg.Region = endpoints.UsEast1RegionID
+	tableName := os.Getenv("SYSTEM_TABLE")
 
 	svc := dynamodb.New(cfg)
 	input := &dynamodb.QueryInput{
-		TableName: aws.String("FinSense"),
+		TableName: aws.String(tableName),
 		ExpressionAttributeNames: map[string]string{
 			"#K": "Key",
 		},
@@ -302,24 +275,7 @@ func getLastRunTime() string {
 	req := svc.QueryRequest(input)
 	result, err := req.Send()
 	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			switch aerr.Code() {
-			case dynamodb.ErrCodeProvisionedThroughputExceededException:
-				fmt.Println(dynamodb.ErrCodeProvisionedThroughputExceededException, aerr.Error())
-			case dynamodb.ErrCodeResourceNotFoundException:
-				fmt.Println(dynamodb.ErrCodeResourceNotFoundException, aerr.Error())
-			//case dynamodb.ErrCodeRequestLimitExceeded:
-			//	fmt.Println(dynamodb.ErrCodeRequestLimitExceeded, aerr.Error())
-			case dynamodb.ErrCodeInternalServerError:
-				fmt.Println(dynamodb.ErrCodeInternalServerError, aerr.Error())
-			default:
-				fmt.Println(aerr.Error())
-			}
-		} else {
-			// Not an AWS error
-			fmt.Println(err.Error())
-		}
-		panic("There was an error with DynamoDB")
+		exitErrorf("DynamoDB Error: %v", err)
 	}
 	return *result.Items[0]["Value"].S
 }
@@ -327,37 +283,21 @@ func getLastRunTime() string {
 func readMinerTable() []map[string]dynamodb.AttributeValue {
 	cfg, err := external.LoadDefaultAWSConfig()
 	if err != nil {
-		panic("unable to load SDK config, " + err.Error())
+		exitErrorf("Unable to load SDK config: %v", err)
 	}
 
 	cfg.Region = endpoints.UsEast1RegionID
+	tableName := os.Getenv("MINER_TABLE")
 
 	svc := dynamodb.New(cfg)
 	input := &dynamodb.ScanInput{
-		TableName: aws.String("Miners"),
+		TableName: aws.String(tableName),
 	}
 
 	req := svc.ScanRequest(input)
 	result, err := req.Send()
 	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			switch aerr.Code() {
-			case dynamodb.ErrCodeProvisionedThroughputExceededException:
-				fmt.Println(dynamodb.ErrCodeProvisionedThroughputExceededException, aerr.Error())
-			case dynamodb.ErrCodeResourceNotFoundException:
-				fmt.Println(dynamodb.ErrCodeResourceNotFoundException, aerr.Error())
-			//case dynamodb.ErrCodeRequestLimitExceeded:
-			//	fmt.Println(dynamodb.ErrCodeRequestLimitExceeded, aerr.Error())
-			case dynamodb.ErrCodeInternalServerError:
-				fmt.Println(dynamodb.ErrCodeInternalServerError, aerr.Error())
-			default:
-				fmt.Println(aerr.Error())
-			}
-		} else {
-			// Not an AWS error
-			fmt.Println(err.Error())
-		}
-		panic("There was an error with DynamoDB")
+		exitErrorf("DynamoDB Error: %v", err)
 	}
 	return result.Items
 }
@@ -365,7 +305,7 @@ func readMinerTable() []map[string]dynamodb.AttributeValue {
 func writeLastRunTime() {
 	cfg, err := external.LoadDefaultAWSConfig()
 	if err != nil {
-		panic("unable to load SDK config, " + err.Error())
+		exitErrorf("Unable to load SDK config: %v", err)
 	}
 
 	cfg.Region = endpoints.UsEast1RegionID
@@ -393,38 +333,15 @@ func writeLastRunTime() {
 	req := svc.PutItemRequest(input)
 	result, err := req.Send()
 	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			switch aerr.Code() {
-			case dynamodb.ErrCodeConditionalCheckFailedException:
-				fmt.Println(dynamodb.ErrCodeConditionalCheckFailedException, aerr.Error())
-			case dynamodb.ErrCodeProvisionedThroughputExceededException:
-				fmt.Println(dynamodb.ErrCodeProvisionedThroughputExceededException, aerr.Error())
-			case dynamodb.ErrCodeResourceNotFoundException:
-				fmt.Println(dynamodb.ErrCodeResourceNotFoundException, aerr.Error())
-			case dynamodb.ErrCodeItemCollectionSizeLimitExceededException:
-				fmt.Println(dynamodb.ErrCodeItemCollectionSizeLimitExceededException, aerr.Error())
-			//case dynamodb.ErrCodeTransactionConflictException:
-			//	fmt.Println(dynamodb.ErrCodeTransactionConflictException, aerr.Error())
-			//case dynamodb.ErrCodeRequestLimitExceededException:
-			//	fmt.Println(dynamodb.ErrCodeRequestLimitExceeded, aerr.Error())
-			case dynamodb.ErrCodeInternalServerError:
-				fmt.Println(dynamodb.ErrCodeInternalServerError, aerr.Error())
-			default:
-				fmt.Println(aerr.Error())
-			}
-		} else {
-			// Not an AWS error
-			fmt.Println(err.Error())
-		}
-		return
+		exitErrorf("DynamoDB Error: %v", err)
 	}
-	fmt.Println(result)
+	log.Debug(result)
 }
 
 func exitErrorf(msg string, args ...interface{}) {
-	fmt.Fprintf(os.Stderr, msg+"\n", args...)
-	sendSQSMessage(msg)
-	log.Fatal(msg)
+	s := fmt.Sprintf(msg+"\n", args...)
+	sendSQSMessage(s)
+	log.Fatal(s)
 	os.Exit(1)
 }
 

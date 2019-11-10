@@ -40,6 +40,8 @@ functions:
     environment:
       SLACK_CHANNEL: ${self:custom.SLACK_CHANNEL.environment.${self:provider.stage}}
       SLACK_TOKEN: ${self:custom.slacktoken}
+      SYSTEM_TABLE: prospectbot-${self:provider.stage}
+      MINER_TABLE: miners-${self:provider.stage}
     iamRoleStatements:
       - Effect: Allow
         Action:
