@@ -316,9 +316,11 @@ func writeLastRunTime() {
 	// Github only takes the GMT suffix.
 	// Counts against rate limit if removed.
 	currentTimeGMT := strings.Replace(currentTimeUTC, "UTC", "GMT", -1)
+	tableName := os.Getenv("SYSTEM_TABLE")
 
 	svc := dynamodb.New(cfg)
 	input := &dynamodb.PutItemInput{
+		TableName: aws.String(tableName),
 		Item: map[string]dynamodb.AttributeValue{
 			"Key": {
 				S: aws.String("lastruntime"),
@@ -327,7 +329,6 @@ func writeLastRunTime() {
 				S: aws.String(currentTimeGMT),
 			},
 		},
-		TableName: aws.String("FinSense"),
 	}
 
 	req := svc.PutItemRequest(input)
