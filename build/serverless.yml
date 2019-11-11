@@ -1,16 +1,73 @@
 --- 
 frameworkVersion: ">=1.28.0 <2.0.0"
+custom:
+  SLACK_CHANNEL:
+    environment:
+      test: CPEN4FNM6
+      dev: CPEN4FNM6
+      qa: CPEN4N648
+      prod: CPGHX0V2T
+  slacktoken: ${ssm:/slack/access-token~false}
 functions: 
+  error:
+    handler: cmd/errors
+    onError: !GetAtt ErrorQueue.Arn
+    name: errorHandler-${self:provider.stage}
+    environment:
+      SLACK_CHANNEL: CPUF4Q8LT
+      SLACK_TOKEN: ${self:custom.slacktoken}
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - kms:Decrypt
+        Resource:
+          - "arn:aws:kms:us-east-1:385445628596:key/d47201dc-0660-4c8d-80de-58ec583bc48b"
+      - Effect: Allow
+        Action:
+          - sqs:SendMessage
+          - sqs:ReceiveMessage
+          - sqs:DeleteMessage
+          - sqs:GetQueueAttributes
+        Resource: 
+          - !GetAtt ErrorQueue.Arn
+    events:
+      - sqs:
+          arn: !GetAtt ErrorQueue.Arn      
   prospectbot:
-    handler: cmd/main
-    onError: !Ref DLQ
+    handler: cmd/prospectbot
+    onError: !GetAtt ErrorQueue.Arn
     name: prospectbot-${self:provider.stage}
+    environment:
+      SLACK_CHANNEL: ${self:custom.SLACK_CHANNEL.environment.${self:provider.stage}}
+      SLACK_TOKEN: ${self:custom.slacktoken}
+      SYSTEM_TABLE: prospectbot-${self:provider.stage}
+      MINER_TABLE: miners-${self:provider.stage}
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - kms:Decrypt
+        Resource:
+          - "arn:aws:kms:us-east-1:385445628596:key/d47201dc-0660-4c8d-80de-58ec583bc48b"
+      - Effect: Allow
+        Action:
+          - dynamodb:PutItem
+          - dynamodb:ListTables
+          - dynamodb:GetItem
+          - dynamodb:Query
+          - dynamodb:UpdateItem
+          - dynamodb:Scan
+        Resource: "*"
+      - Effect: Allow
+        Action:
+          - sqs:SendMessage
+        Resource:
+          - !GetAtt ErrorQueue.Arn
     events:
       - schedule:
           rate: rate(10 minutes)
           enabled: true
           name: run-prospectbot-${opt:stage, 'dev'}
-          description: 'Checks Github for new software releases'
+          description: Checks Github for new software releases
 package:
  exclude:
    - ../**
@@ -36,39 +93,13 @@ provider:
       - subnet-0fd39854
       - subnet-c436a7a1
       - subnet-d61aa3da
-  iamRoleStatements:
-      - Effect: "Allow"
-        Action:
-          - "dynamodb:PutItem"
-          - "dynamodb:ListTables"
-          - "dynamodb:GetItem"
-          - "dynamodb:Query"
-          - "dynamodb:UpdateItem"
-          - "dynamodb:Scan"
-        Resource: "*"
-      - Effect: "Allow"
-        Action:
-          - "sns:Publish"
-        Resource: arn:aws:sns:${opt:region, 'us-east-1'}:385445628596:prospectbot-${opt:stage, 'dev'}-dlq
 service: prospectbot
+plugins:
+  - serverless-iam-roles-per-function
 resources:
   Resources:
-    DLQ:
-      Type: AWS::SNS::Topic
+    ErrorQueue:
+      Type: AWS::SQS::Queue
       Properties:
-        DisplayName: prospectbot-${opt:stage, 'dev'}-dlq
-        KmsMasterKeyId: d47201dc-0660-4c8d-80de-58ec583bc48b
-        TopicName: prospectbot-${opt:stage, 'dev'}-dlq
-    EmailSubscription:
-      Type: AWS::SNS::Subscription
-      Properties:
-        Endpoint: lawrence.aiello@laiello.com
-        Protocol: email
-        TopicArn: !Ref DLQ
-    SMSSubscription:
-      Type: AWS::SNS::Subscription
-      Properties:
-        Endpoint: 2028536141
-        Protocol: sms
-        TopicArn: !Ref DLQ
-
+        QueueName: prospectbot-errors-${opt:stage, 'dev'}
+        VisibilityTimeout: 900
