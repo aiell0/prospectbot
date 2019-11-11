@@ -1,29 +1,28 @@
-package prospectbot
+package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 
+	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/aws/awserr"
 	"github.com/aws/aws-sdk-go-v2/aws/endpoints"
 	"github.com/aws/aws-sdk-go-v2/aws/external"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
-	"github.com/aws/aws-sdk-go-v2/service/ssm"
+	"github.com/aws/aws-sdk-go-v2/service/kms"
+	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/nlopes/slack"
 	"golang.org/x/net/html"
 )
-
-var slackChannel string = os.Getenv("SLACK_CHANNEL")
-var systemTable string = os.Getenv("DYNAMODB_TABLE")
-var minerTable string = os.Getenv("MINERS_TABLE")
 
 func init() {
 	log.SetFormatter(&log.TextFormatter{
@@ -32,12 +31,6 @@ func init() {
 	})
 	log.SetLevel(log.DebugLevel)
 	log.Debug("Initialization.")
-}
-
-func exitErrorf(msg string, args ...interface{}) {
-	fmt.Fprintf(os.Stderr, msg+"\n", args...)
-	log.Fatal(msg)
-	os.Exit(1)
 }
 
 type Author struct {
@@ -119,33 +112,42 @@ type GithubResponse struct {
 	Assets           []Asset
 }
 
-func sendSlackMessage(channel string, message string) {
+func getSlackToken() string {
 	cfg, err := external.LoadDefaultAWSConfig()
 	if err != nil {
-		panic("unable to load SDK config, " + err.Error())
+		exitErrorf("unable to load SDK config, %v", err)
 	}
 
+	// Set the AWS Region that the service clients should use
 	cfg.Region = endpoints.UsEast1RegionID
-
-	svc := ssm.New(cfg)
-	input := &ssm.GetParameterInput{
-		Name:           aws.String("/slack/access-token"),
-		WithDecryption: aws.Bool(true),
-	}
-	slackToken, err := svc.GetParameter(input)
+	svc := kms.New(cfg)
+	encryptionContext := make(map[string]string)
+	encryptionContext["PARAMETER_ARN"] = "arn:aws:ssm:us-east-1:385445628596:parameter/slack/access-token"
+	decoded, err := base64.StdEncoding.DecodeString(os.Getenv("SLACK_TOKEN"))
 	if err != nil {
-		exitErrorf("There was a problem getting the Slack Access Token.")
+		fmt.Println("decode error:", err)
 	}
+	input := &kms.DecryptInput{
+		CiphertextBlob:    []byte(string(decoded)),
+		EncryptionContext: encryptionContext,
+	}
+
+	req := svc.DecryptRequest(input)
+	result, err := req.Send()
+	if err != nil {
+		exitErrorf("KMS Error: %v", err)
+	}
+	return string(result.Plaintext)
+}
+
+func sendSlackMessage(channel string, message string) {
+	slackToken := getSlackToken()
 	api := slack.New(slackToken)
 	channelID, timestamp, err := api.PostMessage(channel, slack.MsgOptionText(message, false))
 	if err != nil {
 		exitErrorf("Sending a message to Slack failed, %v", err)
 	}
-
-	// Not sure how to handle this in Golang yet.
-	_ = timestamp
-
-	log.WithFields(log.Fields{"channel_id": channelID})
+	log.WithFields(log.Fields{"channel_id": channelID, "timestamp": timestamp})
 	log.Info("Slack message sent successfully.")
 }
 
@@ -180,7 +182,7 @@ func readFileServer(url string, dependency chan string) {
 				lr_t, _ := time.Parse("Mon, 02 Jan 2006 15:04:05 MST", lastRunTime)
 				file_t, _ := time.Parse("Mon, 02 Jan 2006 15:04:05 MST", fileTime)
 				if lr_t.Before(file_t) {
-					sendSlackMessage(slackChannel, "New version of software available at file server: "+url)
+					sendSlackMessage(os.Getenv("SLACK_CHANNEL"), "New version of software available at file server: "+url)
 				}
 			}
 			for c := n.LastChild; c != nil; c = c.PrevSibling {
@@ -203,16 +205,17 @@ func queryGithub(owner string, miner string) {
 	}
 	defer res.Body.Close()
 	htmlData, err := ioutil.ReadAll(res.Body)
-	serverType := res.Header.Get("Server")
-	if serverType == "GitHub.com" {
-		fmt.Println("Server is GitHub.")
-		fmt.Println("API Calls Remaining: " + res.Header.Get("X-RateLimit-Remaining"))
-	} else {
-		panic("Unsupported server type. Only GitHub is supported.")
-	}
 	if err != nil {
-		fmt.Printf("Failed with error %s\n", err)
-		os.Exit(1)
+		exitErrorf("Failed with error %s\n", err)
+	}
+	//serverType := res.Header.Get("Server")
+	rateLimitRemaining := res.Header.Get("X-RateLimit-Remaining")
+	i, err := strconv.Atoi(rateLimitRemaining)
+	if err != nil {
+		exitErrorf("Failed with error %s\n", err)
+	}
+	if i < 10 {
+		sendSQSMessage("WARNING: API Rate: " + rateLimitRemaining)
 	}
 
 	var githubResponse GithubResponse
@@ -225,22 +228,23 @@ func queryGithub(owner string, miner string) {
 			time_published, _ := time.Parse("2006-01-02T15:04:05Z", githubResponse.Published_at)
 			time_last_run, _ := time.Parse("Mon, 02 Jan 2006 15:04:05 MST", lastRunTime)
 			if time_last_run.Before(time_published) && time_now.After(time_published) {
-				sendSlackMessage(slackChannel, "New version of "+miner)
-				sendSlackMessage(slackChannel, githubResponse.Html_url)
+				sendSlackMessage(os.Getenv("SLACK_CHANNEL"), "New version of "+miner)
+				sendSlackMessage(os.Getenv("SLACK_CHANNEL"), githubResponse.Html_url)
 			}
 			var assets []Asset = githubResponse.Assets
 			for _, asset := range assets {
 				time_asset_created, _ := time.Parse("2006-01-02T15:04:05Z", asset.Created_at)
 				fmt.Println("Asset Creation Time: " + time_asset_created.String())
 				if time_last_run.Before(time_asset_created) && time_now.After(time_asset_created) {
-					sendSlackMessage(slackChannel, "The latest release of "+miner+" has been updated.")
-					sendSlackMessage(slackChannel, asset.Name+":"+asset.Url)
+					sendSlackMessage(os.Getenv("SLACK_CHANNEL"), "The latest release of "+miner+" has been updated.")
+					sendSlackMessage(os.Getenv("SLACK_CHANNEL"), asset.Name+":"+asset.Url)
 				}
 			}
 		} else if res.StatusCode == 304 {
 			fmt.Println("No update for " + miner)
 		} else {
-			fmt.Printf("The HTTP request failed with error %d: %s\n", res.StatusCode, http.StatusText(res.StatusCode))
+			sendSQSMessage("Uncaught HTTP Error: " + http.StatusText(res.StatusCode))
+			//fmt.Printf("The HTTP request failed with error %d: %s\n", res.StatusCode, http.StatusText(res.StatusCode))
 		}
 	}
 }
@@ -252,10 +256,11 @@ func getLastRunTime() string {
 	}
 
 	cfg.Region = endpoints.UsEast1RegionID
+	tableName := os.Getenv("SYSTEM_TABLE")
 
 	svc := dynamodb.New(cfg)
 	input := &dynamodb.QueryInput{
-		TableName: aws.String(systemTable),
+		TableName: aws.String(tableName),
 		ExpressionAttributeNames: map[string]string{
 			"#K": "Key",
 		},
@@ -270,24 +275,7 @@ func getLastRunTime() string {
 	req := svc.QueryRequest(input)
 	result, err := req.Send()
 	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			switch aerr.Code() {
-			case dynamodb.ErrCodeProvisionedThroughputExceededException:
-				fmt.Println(dynamodb.ErrCodeProvisionedThroughputExceededException, aerr.Error())
-			case dynamodb.ErrCodeResourceNotFoundException:
-				fmt.Println(dynamodb.ErrCodeResourceNotFoundException, aerr.Error())
-			//case dynamodb.ErrCodeRequestLimitExceeded:
-			//	fmt.Println(dynamodb.ErrCodeRequestLimitExceeded, aerr.Error())
-			case dynamodb.ErrCodeInternalServerError:
-				fmt.Println(dynamodb.ErrCodeInternalServerError, aerr.Error())
-			default:
-				fmt.Println(aerr.Error())
-			}
-		} else {
-			// Not an AWS error
-			fmt.Println(err.Error())
-		}
-		panic("There was an error with DynamoDB")
+		exitErrorf("DynamoDB Error: %v", err)
 	}
 	return *result.Items[0]["Value"].S
 }
@@ -295,37 +283,21 @@ func getLastRunTime() string {
 func readMinerTable() []map[string]dynamodb.AttributeValue {
 	cfg, err := external.LoadDefaultAWSConfig()
 	if err != nil {
-		panic("unable to load SDK config, " + err.Error())
+		exitErrorf("Unable to load SDK config: %v", err)
 	}
 
 	cfg.Region = endpoints.UsEast1RegionID
+	tableName := os.Getenv("MINER_TABLE")
 
 	svc := dynamodb.New(cfg)
 	input := &dynamodb.ScanInput{
-		TableName: aws.String(minerTable),
+		TableName: aws.String(tableName),
 	}
 
 	req := svc.ScanRequest(input)
 	result, err := req.Send()
 	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			switch aerr.Code() {
-			case dynamodb.ErrCodeProvisionedThroughputExceededException:
-				fmt.Println(dynamodb.ErrCodeProvisionedThroughputExceededException, aerr.Error())
-			case dynamodb.ErrCodeResourceNotFoundException:
-				fmt.Println(dynamodb.ErrCodeResourceNotFoundException, aerr.Error())
-			//case dynamodb.ErrCodeRequestLimitExceeded:
-			//	fmt.Println(dynamodb.ErrCodeRequestLimitExceeded, aerr.Error())
-			case dynamodb.ErrCodeInternalServerError:
-				fmt.Println(dynamodb.ErrCodeInternalServerError, aerr.Error())
-			default:
-				fmt.Println(aerr.Error())
-			}
-		} else {
-			// Not an AWS error
-			fmt.Println(err.Error())
-		}
-		panic("There was an error with DynamoDB")
+		exitErrorf("DynamoDB Error: %v", err)
 	}
 	return result.Items
 }
@@ -333,7 +305,7 @@ func readMinerTable() []map[string]dynamodb.AttributeValue {
 func writeLastRunTime() {
 	cfg, err := external.LoadDefaultAWSConfig()
 	if err != nil {
-		panic("unable to load SDK config, " + err.Error())
+		exitErrorf("Unable to load SDK config: %v", err)
 	}
 
 	cfg.Region = endpoints.UsEast1RegionID
@@ -344,9 +316,11 @@ func writeLastRunTime() {
 	// Github only takes the GMT suffix.
 	// Counts against rate limit if removed.
 	currentTimeGMT := strings.Replace(currentTimeUTC, "UTC", "GMT", -1)
+	tableName := os.Getenv("SYSTEM_TABLE")
 
 	svc := dynamodb.New(cfg)
 	input := &dynamodb.PutItemInput{
+		TableName: aws.String(tableName),
 		Item: map[string]dynamodb.AttributeValue{
 			"Key": {
 				S: aws.String("lastruntime"),
@@ -355,45 +329,58 @@ func writeLastRunTime() {
 				S: aws.String(currentTimeGMT),
 			},
 		},
-		TableName: aws.String(systemTable),
 	}
 
 	req := svc.PutItemRequest(input)
 	result, err := req.Send()
 	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			switch aerr.Code() {
-			case dynamodb.ErrCodeConditionalCheckFailedException:
-				fmt.Println(dynamodb.ErrCodeConditionalCheckFailedException, aerr.Error())
-			case dynamodb.ErrCodeProvisionedThroughputExceededException:
-				fmt.Println(dynamodb.ErrCodeProvisionedThroughputExceededException, aerr.Error())
-			case dynamodb.ErrCodeResourceNotFoundException:
-				fmt.Println(dynamodb.ErrCodeResourceNotFoundException, aerr.Error())
-			case dynamodb.ErrCodeItemCollectionSizeLimitExceededException:
-				fmt.Println(dynamodb.ErrCodeItemCollectionSizeLimitExceededException, aerr.Error())
-			//case dynamodb.ErrCodeTransactionConflictException:
-			//	fmt.Println(dynamodb.ErrCodeTransactionConflictException, aerr.Error())
-			//case dynamodb.ErrCodeRequestLimitExceededException:
-			//	fmt.Println(dynamodb.ErrCodeRequestLimitExceeded, aerr.Error())
-			case dynamodb.ErrCodeInternalServerError:
-				fmt.Println(dynamodb.ErrCodeInternalServerError, aerr.Error())
-			default:
-				fmt.Println(aerr.Error())
-			}
-		} else {
-			// Not an AWS error
-			fmt.Println(err.Error())
-		}
-		return
+		exitErrorf("DynamoDB Error: %v", err)
 	}
-	fmt.Println(result)
+	log.Debug(result)
 }
 
-func CheckMiners() (string, error) {
+func exitErrorf(msg string, args ...interface{}) {
+	s := fmt.Sprintf(msg+"\n", args...)
+	sendSQSMessage(s)
+	log.Fatal(s)
+	os.Exit(1)
+}
+
+func sendSQSMessage(message string) {
+	cfg, err := external.LoadDefaultAWSConfig()
+	if err != nil {
+		panic("unable to load SDK config, " + err.Error())
+	}
+
+	// Set the AWS Region that the service clients should use
+	cfg.Region = endpoints.UsEast1RegionID
+	svc := sqs.New(cfg)
+
+	input := &sqs.SendMessageInput{
+		DelaySeconds: aws.Int64(1),
+		QueueUrl:     aws.String("https://sqs.us-east-1.amazonaws.com/385445628596/prospectbot-errors-dev"),
+		MessageBody:  aws.String(message),
+	}
+
+	//TODO: Get queue url dynamically
+	req := svc.SendMessageRequest(input)
+	resp, err := req.Send()
+	if err != nil {
+		exitErrorf("failed to send message: %v\n", err)
+	}
+	log.Info("Error message successfully sent to SQS.")
+	log.Debug(resp)
+}
+
+func checkMiners() (string, error) {
 	miners := readMinerTable()
 	for _, miner := range miners {
 		queryGithub(*miner["GithubOwner"].S, *miner["Name"].S)
 	}
 	writeLastRunTime()
 	return "Successful!", nil
+}
+
+func main() {
+	lambda.Start(checkMiners)
 }
