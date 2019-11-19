@@ -9,6 +9,23 @@ custom:
       prod: CPGHX0V2T
   slacktoken: ${ssm:/slack/access-token~false}
 functions: 
+  pick:
+    handler: cmd/pick
+    onError: !GetAtt ErrorQueue.Arn
+    name: pick-${self:provider.stage}
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - sqs:SendMessage
+        Resource:
+          - !GetAtt ErrorQueue.Arn
+      - Effect: Allow
+        Action:
+          - dynamodb:GetItem
+          - dynamodb:Scan
+          - dynamodb:Query
+        Resource:
+          - arn:aws:dynamodb:us-east-1:385445628596:table/miners-dev
   error:
     handler: cmd/errors
     onError: !GetAtt ErrorQueue.Arn
@@ -21,7 +38,7 @@ functions:
         Action:
           - kms:Decrypt
         Resource:
-          - "arn:aws:kms:us-east-1:385445628596:key/d47201dc-0660-4c8d-80de-58ec583bc48b"
+          - arn:aws:kms:us-east-1:385445628596:key/d47201dc-0660-4c8d-80de-58ec583bc48b
       - Effect: Allow
         Action:
           - sqs:SendMessage
@@ -63,6 +80,12 @@ functions:
         Resource:
           - !GetAtt ErrorQueue.Arn
     events:
+      - https:
+          path: prospectbot/
+          method: post
+          integration: lambda
+          requests:
+            passThrough: NEVER
       - schedule:
           rate: rate(10 minutes)
           enabled: true
@@ -98,6 +121,17 @@ plugins:
   - serverless-iam-roles-per-function
 resources:
   Resources:
+    API:
+      Type: AWS::ApiGateway::RestApi
+      Properties: 
+        Name: Prospectbot
+    Domain:
+      Type: AWS::ApiGatewayV2::DomainName
+      Properties:
+        DomainName: www.blockforgecapital.com
+        DomainNameConfigurations:
+          - CertificateArn: 	arn:aws:acm:us-east-1:385445628596:certificate/8e169b97-ca9b-4578-9c5c-476f59b75c92
+            EndpointType: EDGE
     ErrorQueue:
       Type: AWS::SQS::Queue
       Properties:
