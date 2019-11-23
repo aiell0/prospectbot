@@ -121,17 +121,44 @@ plugins:
   - serverless-iam-roles-per-function
 resources:
   Resources:
+    PostMethod:
+      Type: AWS::ApiGateway::Method
+      Properties:
+        AuthorizationType: AWS_IAM
+        HttpMethod: POST
+        RestApiId: !Ref API
+        ResourceId: !GetAtt API.RootResourceId
+    APIDeployment:
+      Type: AWS::ApiGateway::Deployment
+      DependsOn: PostMethod
+      Properties:
+        Description: The Slack slash command "/find"
+        RestApiId: !Ref API
+        StageName: ${opt:stage, 'dev'}
+    BasePathMapping:
+      Type: AWS::ApiGateway::BasePathMapping
+      Properties:
+        BasePath: prospectbot
+        DomainName: !Ref Domain
+        RestApiId: !Ref API
     API:
       Type: AWS::ApiGateway::RestApi
       Properties: 
         Name: Prospectbot
+        Description: API for Prospectbot Slack slash commands.
+        FailOnWarnings: False
+        EndpointConfiguration:
+          Types:
+            - REGIONAL
     Domain:
-      Type: AWS::ApiGatewayV2::DomainName
+      Type: AWS::ApiGateway::DomainName
       Properties:
         DomainName: www.blockforgecapital.com
-        DomainNameConfigurations:
-          - CertificateArn: 	arn:aws:acm:us-east-1:385445628596:certificate/8e169b97-ca9b-4578-9c5c-476f59b75c92
-            EndpointType: EDGE
+        RegionalCertificateArn:	arn:aws:acm:us-east-1:385445628596:certificate/8e169b97-ca9b-4578-9c5c-476f59b75c92
+        EndpointConfiguration:
+          Types:
+            - REGIONAL
+        SecurityPolicy: TLS_1_2
     ErrorQueue:
       Type: AWS::SQS::Queue
       Properties:

@@ -352,7 +352,6 @@ func sendSQSMessage(message string) {
 		panic("unable to load SDK config, " + err.Error())
 	}
 
-	// Set the AWS Region that the service clients should use
 	cfg.Region = endpoints.UsEast1RegionID
 	svc := sqs.New(cfg)
 
