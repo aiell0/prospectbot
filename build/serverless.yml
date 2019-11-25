@@ -121,6 +121,36 @@ plugins:
   - serverless-iam-roles-per-function
 resources:
   Resources:
+    APIRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - apigateway.amazonaws.com
+              Action:
+                - 'sts:AssumeRole'
+        Path: /
+        Policies:
+          - PolicyName: find
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - lambda:InvokeFunction
+                  Resource: 
+                    - Fn::Join:
+                      - ':'
+                      -
+                        - arn:aws:lambda
+                        - Ref: AWS::Region
+                        - Ref: AWS::AccountId
+                        - function
+                        - pick-${opt:stage, 'dev'}
     PostMethod:
       Type: AWS::ApiGateway::Method
       Properties:
@@ -128,6 +158,22 @@ resources:
         HttpMethod: POST
         RestApiId: !Ref API
         ResourceId: !GetAtt API.RootResourceId
+        Integration:
+          Credentials: !GetAtt APIRole.Arn
+          IntegrationHttpMethod: POST
+          PassthroughBehavior: WHEN_NO_TEMPLATES
+          Type: AWS
+          Uri: 
+            Fn::Join:
+              - ':'
+              -
+                - arn:aws:apigateway
+                - Ref: AWS::Region
+                - lambda:path/2015-03-31/functions/arn:aws:lambda
+                - Ref: AWS::Region
+                - Ref: AWS::AccountId
+                - function
+                - pick-${opt:stage, 'dev'}/invocations
     APIDeployment:
       Type: AWS::ApiGateway::Deployment
       DependsOn: PostMethod
