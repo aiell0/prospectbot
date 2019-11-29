@@ -178,7 +178,7 @@ aws_serverless_deploy:
   script:
     - cd deploy
     - npm install
-    - ./node_modules/serverless/bin/serverless deploy --log --aws-s3-accelerate
+    - ./node_modules/serverless/bin/serverless deploy --log
 
 aws_serverless_remove:
   image: node:13.1.0-alpine3.10
@@ -188,7 +188,7 @@ aws_serverless_remove:
     - *apk_upgrade
   script:
     - cd deploy
-    - ./node_modules/serverless/bin/serverless remove --log --aws-s3-accelerate
+    - ./node_modules/serverless/bin/serverless remove --log
   cache:
     <<: *global_cache
     paths:
