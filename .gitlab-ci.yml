@@ -1,0 +1,197 @@
+image: golang:1.13.4-alpine3.10
+
+# From: https://blog.sparksuite.com/7-ways-to-speed-up-gitlab-ci-cd-times-29f60aab69f9
+variables:
+  DOCKER_DRIVER: overlay2
+
+# Global cache configuration
+cache: &global_cache
+  policy: pull
+  untracked: false
+  key: ${CI_COMMIT_REF_SLUG}
+
+.apk_upgrade: &apk_upgrade
+  - apk update
+  - apk upgrade
+
+.install_build_deps: &install_build_deps
+  - apk add build-base
+  - mkdir -p .go-build
+  - mount --bind .go-build $(go env GOCACHE)
+
+stages:
+  - lint
+  - unit_test
+  - build
+  - deploy
+  - integration_test
+  - teardown
+
+golint-ci:
+  stage: lint
+  cache: {}
+  script:
+    - apk add curl
+    - curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v1.21.0
+    - ./bin/golangci-lint run . -v --enable stylecheck,unconvert,goconst,bodyclose,gosec
+  except:
+    - master
+
+dependency_scan:
+  image: node:13.1.0-alpine3.10
+  stage: unit_test
+  allow_failure: true
+  before_script:
+    - *apk_upgrade
+  script:
+    - npm install -g snyk
+    - snyk auth $SNYK_TOKEN
+    - snyk test
+    - snyk monitor
+    - npm link deploy/
+    - snyk test --file=deploy/package.json
+    - snyk monitor --file=deploy/package.json
+
+darwin/amd64(macOSX):
+  stage: build
+  allow_failure: true
+  before_script:
+    - *apk_upgrade
+    - *install_build_deps
+  script:
+    - GOCACHE=$CI_PROJECT_DIR/.go-build GOARCH=amd64 GOOS=darwin go build -o cmd/prospectbot prospectbot.go
+    - GOCACHE=$CI_PROJECT_DIR/.go-build GOARCH=amd64 GOOS=darwin go build -o cmd/errors errors.go
+  cache:
+    <<: *global_cache
+    paths:
+      - .go-build
+  except:
+    - master
+
+windows/386(Windows):
+  stage: build
+  allow_failure: true
+  before_script:
+    - *apk_upgrade
+    - *install_build_deps
+  script:
+    - GOCACHE=$CI_PROJECT_DIR/.go-build GOARCH=amd64 GOOS=darwin go build -o cmd/prospectbot prospectbot.go
+    - GOCACHE=$CI_PROJECT_DIR/.go-build GOARCH=amd64 GOOS=darwin go build -o cmd/errors errors.go
+  cache:
+    <<: *global_cache
+    paths:
+      - .go-build
+  except:
+    - master
+
+windows/amd64(Windows):
+  stage: build
+  allow_failure: true
+  before_script:
+    - *apk_upgrade
+    - *install_build_deps
+  script:
+    - GOCACHE=$CI_PROJECT_DIR/.go-build GOARCH=amd64 GOOS=darwin go build -o cmd/prospectbot prospectbot.go
+    - GOCACHE=$CI_PROJECT_DIR/.go-build GOARCH=amd64 GOOS=darwin go build -o cmd/errors errors.go
+  cache:
+    <<: *global_cache
+    paths:
+      - .go-build
+  except:
+    - master
+
+linux/amd64(lambda):
+  stage: build
+  before_script:
+    - *apk_upgrade
+    - *install_build_deps
+  script:
+    - GOCACHE=$CI_PROJECT_DIR/.go-build GOARCH=amd64 GOOS=darwin go build -o cmd/prospectbot prospectbot.go
+    - GOCACHE=$CI_PROJECT_DIR/.go-build GOARCH=amd64 GOOS=darwin go build -o cmd/errors errors.go
+  cache:
+    <<: *global_cache
+    policy: pull-push
+    paths:
+      - .go-build
+  artifacts:
+    paths:
+      - cmd/
+
+test_coverage:
+  stage: unit_test
+  coverage: '/^coverage:\s(\d+(?:\.\d+)?%)/'
+  allow_failure: true
+  before_script:
+    - *apk_upgrade
+    - *install_build_deps
+  cache:
+    <<: *global_cache
+    policy: pull-push
+    paths:
+      - .go-build
+  script:
+    - GOCACHE=$CI_PROJECT_DIR/.go-build go test -coverprofile=coverage.cov -v
+  except:
+    - master
+
+# TODO: https://github.com/golang/go/issues/14481
+test_data_race:
+  stage: unit_test
+  allow_failure: true
+  before_script:
+    - *apk_upgrade
+    - *install_build_deps
+  script:
+    - GOCACHE=$CI_PROJECT_DIR/.go-build go test -race -v
+  cache:
+    <<: *global_cache
+    paths:
+      - .go-build
+  except:
+    - master
+
+test_memory_sanitizer:
+  stage: unit_test
+  allow_failure: true
+  before_script:
+    - *apk_upgrade
+    - *install_build_deps
+  script:
+    - GOCACHE=$CI_PROJECT_DIR/.go-build go test -msan -v
+  cache:
+    <<: *global_cache
+    paths:
+      - .go-build
+  except:
+    - master
+
+aws_serverless_deploy:
+  stage: deploy
+  image: node:13.1.0-alpine3.10
+  before_script:
+    - *apk_upgrade
+  cache:
+    <<: *global_cache
+    policy: pull-push
+    paths:
+      - deploy/node_modules
+  script:
+    - cd deploy
+    - npm install
+    - ./node_modules/serverless/bin/serverless deploy --log
+
+aws_serverless_remove:
+  image: node:13.1.0-alpine3.10
+  stage: teardown
+  retry: 2
+  before_script:
+    - *apk_upgrade
+  script:
+    - cd deploy
+    - ./node_modules/serverless/bin/serverless remove --log
+  cache:
+    <<: *global_cache
+    paths:
+      - deploy/node_modules
+  except:
+    - master

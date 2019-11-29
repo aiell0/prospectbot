@@ -1,0 +1,16 @@
+{
+  "name": "prospectbot",
+  "version": "1.0.0",
+  "description": "Crypto Mining",
+  "main": "prospectbot.go",
+  "dependencies": {
+    "serverless": "^1.58.0",
+    "serverless-iam-roles-per-function": "^2.0.2"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Lawrence Aiello",
+  "license": "MIT"
+}
