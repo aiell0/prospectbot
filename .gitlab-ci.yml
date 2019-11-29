@@ -120,6 +120,7 @@ linux/amd64(lambda):
 test_coverage:
   stage: unit_test
   coverage: '/^coverage:\s(\d+(?:\.\d+)?%)/'
+  allow_failure: true
   before_script:
     - *apk_upgrade
     - *install_build_deps
