@@ -4,8 +4,5 @@ bin/
 src/
 cmd/
 .serverless
-.terraform
-node_modules/
-*.tfstate
-*.tfstate.backup
+deploy/node_modules
 
