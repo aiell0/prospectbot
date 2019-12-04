@@ -195,7 +195,7 @@ resources:
         FailOnWarnings: False
         EndpointConfiguration:
           Types:
-            - REGIONAL
+            - EDGE
     RecordSet:
       Type: AWS::Route53::RecordSet
       Properties:
