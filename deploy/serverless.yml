@@ -7,7 +7,7 @@ custom:
       dev: CPEN4FNM6
       qa: CPEN4N648
       prod: CPGHX0V2T
-  slacktoken: ${ssm:/slack/access-token~false}
+  slacktoken: ${ssm:/slack/access-token)
 functions: 
   pick:
     handler: cmd/pick
@@ -196,14 +196,23 @@ resources:
         EndpointConfiguration:
           Types:
             - REGIONAL
+    RecordSet:
+      Type: AWS::Route53::RecordSet
+      Properties:
+        Type: CNAME
+        TTL: 60
+        Name: www.blockforgecapital.com
+        HostedZoneId: Z2HEWVOTSTGMIM
+        ResourceRecords:
+          - !GetAtt Domain.DistributionDomainName
     Domain:
       Type: AWS::ApiGateway::DomainName
       Properties:
         DomainName: www.blockforgecapital.com
-        RegionalCertificateArn:	arn:aws:acm:us-east-1:385445628596:certificate/8e169b97-ca9b-4578-9c5c-476f59b75c92
+        CertificateArn:	arn:aws:acm:us-east-1:385445628596:certificate/8e169b97-ca9b-4578-9c5c-476f59b75c92
         EndpointConfiguration:
           Types:
-            - REGIONAL
+            - EDGE
         SecurityPolicy: TLS_1_2
     ErrorQueue:
       Type: AWS::SQS::Queue
