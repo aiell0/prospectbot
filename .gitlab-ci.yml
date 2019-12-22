@@ -38,7 +38,6 @@ golint-ci:
     - master
 
 dependency_scan:
-  image: node:13.1.0-alpine3.10
   stage: unit_test
   allow_failure: true
   before_script:
@@ -48,9 +47,6 @@ dependency_scan:
     - snyk auth $SNYK_TOKEN
     - snyk test
     - snyk monitor
-    - npm link deploy/
-    - snyk test --file=deploy/package.json
-    - snyk monitor --file=deploy/package.json
 
 darwin/amd64(macOSX):
   stage: build
