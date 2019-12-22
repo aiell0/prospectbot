@@ -221,7 +221,7 @@ func queryGithub(owner string, miner string) {
 	var githubResponse GithubResponse
 	json.Unmarshal([]byte(string(htmlData)), &githubResponse)
 	if err != nil {
-		fmt.Println("The HTTP request failed with error %s\n", err)
+		fmt.Printf("The HTTP request failed with error %s\n", err)
 	} else {
 		if res.StatusCode == 200 {
 			time_now := time.Now().UTC()
