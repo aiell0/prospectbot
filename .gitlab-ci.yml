@@ -59,7 +59,6 @@ darwin/amd64(macOSX):
     - *apk_upgrade
   script:
     - GOCACHE=$CI_PROJECT_DIR/.go-build GOARCH=amd64 GOOS=darwin go build -o cmd/prospectbot prospectbot.go
-    - GOCACHE=$CI_PROJECT_DIR/.go-build GOARCH=amd64 GOOS=darwin go build -o cmd/errors errors.go
   cache:
     <<: *global_cache
     paths:
@@ -73,7 +72,6 @@ linux/amd64(lambda):
     - *apk_upgrade
   script:
     - GOCACHE=$CI_PROJECT_DIR/.go-build GOARCH=amd64 GOOS=darwin go build -o cmd/prospectbot prospectbot.go
-    - GOCACHE=$CI_PROJECT_DIR/.go-build GOARCH=amd64 GOOS=darwin go build -o cmd/errors errors.go
   cache:
     <<: *global_cache
     policy: pull-push
