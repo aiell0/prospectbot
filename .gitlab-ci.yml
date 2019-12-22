@@ -43,6 +43,7 @@ dependency_scan:
   before_script:
     - *apk_upgrade
   script:
+    - apk add --update nodejs npm
     - npm install -g snyk
     - snyk auth $SNYK_TOKEN
     - snyk test
