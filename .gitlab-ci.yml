@@ -17,7 +17,7 @@ cache: &global_cache
 .install_build_deps: &install_build_deps
   - apk add build-base
   - mkdir -p .go-build
-  - sudo mount --bind .go-build $(go env GOCACHE)
+  - mount --bind .go-build $(go env GOCACHE)
 
 stages:
   - lint
