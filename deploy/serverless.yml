@@ -6,7 +6,7 @@ functions:
   prospectbot:
     handler: cmd/prospectbot
     onError: "arn:aws:sns:us-east-1:368529172044:BFCapital_Support"
-    name: prospectbot
+    name: prospectbot-dev-${env:CI_COMMIT_SHORT_SHA}
     environment:
       SLACK_CHANNEL: CPEN4FNM6
       SLACK_TOKEN: ${self:custom.slacktoken}
@@ -49,13 +49,14 @@ provider:
   deploymentBucket: 
     name: prospectbot-dev-artifacts
     serverSideEncryption: AES256
-  deploymentPrefix: /
+  deploymentPrefix: prospectbot
   memorySize: 128
   name: aws
   region: ${opt:region, 'us-east-1'}
   runtime: go1.x
   stage: ${opt:stage, 'dev'}
   timeout: 180
+  stackName: prospectbot-dev-${env:CI_COMMIT_SHORT_SHA}
   versionFunctions: false
   vpc: 
     securityGroupIds: 
