@@ -93,7 +93,9 @@ test_coverage:
       - .go-build
   script:
     - GOCACHE=$CI_PROJECT_DIR/.go-build go test -coverprofile=coverage.txt -covermode=atomic -v
-    - bash <(curl -s https://codecov.io/bash)
+    - curl -s https://codecov.io/bash > codecov.sh
+    - chmod +x codecov.sh
+    - ./codecov.sh
   except:
     - master
 
