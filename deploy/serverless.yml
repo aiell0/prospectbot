@@ -36,7 +36,7 @@ functions:
       - schedule:
           rate: rate(10 minutes)
           enabled: true
-          name: run-prospectbot
+          name: run-prospectbot-${env:CI_COMMIT_SHORT_SHA}
           description: Checks Github for new software releases
 package:
   exclude:
