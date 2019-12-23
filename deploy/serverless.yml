@@ -48,7 +48,8 @@ package:
 provider: 
   deploymentBucket: 
     name: prospectbot-dev-artifacts
-    serverSideEncryption: AES256
+    serverSideEncryption: aws:kms
+    sseKMSKeyId: arn:aws:kms:us-east-1:368529172044:key/18b77503-d51f-463d-96a3-d8016faba69c
   deploymentPrefix: prospectbot
   memorySize: 128
   name: aws
