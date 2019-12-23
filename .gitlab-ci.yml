@@ -92,7 +92,8 @@ test_coverage:
     paths:
       - .go-build
   script:
-    - GOCACHE=$CI_PROJECT_DIR/.go-build go test -coverprofile=coverage.cov -v
+    - GOCACHE=$CI_PROJECT_DIR/.go-build go test -coverprofile=coverage.txt -covermode=atomic -v
+    - bash <(curl -s https://codecov.io/bash)
   except:
     - master
 
