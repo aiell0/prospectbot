@@ -56,7 +56,6 @@ provider:
   runtime: go1.x
   stage: ${opt:stage, 'dev'}
   timeout: 180
-  stackName: prospectbot-dev-${env:CI_COMMIT_SHORT_SHA}
   versionFunctions: false
   vpc: 
     securityGroupIds: 
@@ -68,6 +67,6 @@ provider:
       - subnet-014f6a1ef62467747
       - subnet-054786e6b88490645
       - subnet-09d64791da9820617
-service: prospectbot
+service: prospectbot-${env:CI_COMMIT_SHORT_SHA}
 plugins:
   - serverless-iam-roles-per-function
