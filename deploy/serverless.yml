@@ -99,7 +99,7 @@ package:
    - ../internal/*
 provider: 
   deploymentBucket: 
-    name: serverless-deployment-stacks
+    name: prospectbot-dev-artifacts
     serverSideEncryption: AES256
   deploymentPrefix: prospectbot
   memorySize: 512
