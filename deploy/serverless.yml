@@ -1,53 +1,23 @@
 --- 
 frameworkVersion: ">=1.28.0 <2.0.0"
 custom:
-  SLACK_CHANNEL:
-    environment:
-      test: CPEN4FNM6
-      dev: CPEN4FNM6
-      qa: CPEN4N648
-      prod: CPGHX0V2T
   slacktoken: ${ssm:/slack/access-token~false}
 functions: 
-  error:
-    handler: cmd/errors
-    onError: !GetAtt ErrorQueue.Arn
-    name: errorHandler-${self:provider.stage}
-    environment:
-      SLACK_CHANNEL: CPUF4Q8LT
-      SLACK_TOKEN: ${self:custom.slacktoken}
-    iamRoleStatements:
-      - Effect: Allow
-        Action:
-          - kms:Decrypt
-        Resource:
-          - "arn:aws:kms:us-east-1:385445628596:key/d47201dc-0660-4c8d-80de-58ec583bc48b"
-      - Effect: Allow
-        Action:
-          - sqs:SendMessage
-          - sqs:ReceiveMessage
-          - sqs:DeleteMessage
-          - sqs:GetQueueAttributes
-        Resource: 
-          - !GetAtt ErrorQueue.Arn
-    events:
-      - sqs:
-          arn: !GetAtt ErrorQueue.Arn      
   prospectbot:
     handler: cmd/prospectbot
-    onError: !GetAtt ErrorQueue.Arn
-    name: prospectbot-${self:provider.stage}
+    onError: "arn:aws:sns:us-east-1:368529172044:BFCapital_Support"
+    name: prospectbot-dev-${env:CI_COMMIT_SHORT_SHA}
     environment:
-      SLACK_CHANNEL: ${self:custom.SLACK_CHANNEL.environment.${self:provider.stage}}
+      SLACK_CHANNEL: CPEN4FNM6
       SLACK_TOKEN: ${self:custom.slacktoken}
-      SYSTEM_TABLE: prospectbot-${self:provider.stage}
-      MINER_TABLE: miners-${self:provider.stage}
+      SYSTEM_TABLE: prospectbot
+      MINER_TABLE: miners
     iamRoleStatements:
       - Effect: Allow
         Action:
           - kms:Decrypt
         Resource:
-          - "arn:aws:kms:us-east-1:385445628596:key/d47201dc-0660-4c8d-80de-58ec583bc48b"
+          - "arn:aws:kms:us-east-1:368529172044:key/18b77503-d51f-463d-96a3-d8016faba69c"
       - Effect: Allow
         Action:
           - dynamodb:PutItem
@@ -61,45 +31,43 @@ functions:
         Action:
           - sqs:SendMessage
         Resource:
-          - !GetAtt ErrorQueue.Arn
+          - "arn:aws:sqs:us-east-1:368529172044:prospectbot-errors.fifo"
     events:
       - schedule:
           rate: rate(10 minutes)
           enabled: true
-          name: run-prospectbot-${opt:stage, 'dev'}
+          name: run-prospectbot-${env:CI_COMMIT_SHORT_SHA}
           description: Checks Github for new software releases
 package:
- exclude:
-   - ../**
- include:
-   - ../cmd/*
-   - ../internal/*
+  exclude:
+    - node_modules/**
+    - package.json
+    - package-lock.json
+  include:
+    - ../cmd/prospectbot
 provider: 
   deploymentBucket: 
-    name: serverless-deployment-stacks
-    serverSideEncryption: AES256
+    name: prospectbot-dev-artifacts
+    serverSideEncryption: aws:kms
+    sseKMSKeyId: arn:aws:kms:us-east-1:368529172044:key/18b77503-d51f-463d-96a3-d8016faba69c
   deploymentPrefix: prospectbot
-  memorySize: 512
+  memorySize: 128
   name: aws
   region: ${opt:region, 'us-east-1'}
   runtime: go1.x
   stage: ${opt:stage, 'dev'}
-  timeout: 60
+  timeout: 180
   versionFunctions: false
   vpc: 
     securityGroupIds: 
-      - sg-0a004076bb0b36504
+      - sg-0fe322ae8afec85d8
     subnetIds: 
-      - subnet-0fd39854
-      - subnet-c436a7a1
-      - subnet-d61aa3da
-service: prospectbot
+      - subnet-082f045cc74d41341
+      - subnet-08f8c3e3ec4a818ef
+      - subnet-0e416060c5df577e2
+      - subnet-014f6a1ef62467747
+      - subnet-054786e6b88490645
+      - subnet-09d64791da9820617
+service: prospectbot-${env:CI_COMMIT_SHORT_SHA}
 plugins:
   - serverless-iam-roles-per-function
-resources:
-  Resources:
-    ErrorQueue:
-      Type: AWS::SQS::Queue
-      Properties:
-        QueueName: prospectbot-errors-${opt:stage, 'dev'}
-        VisibilityTimeout: 900

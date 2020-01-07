@@ -1,4 +1,4 @@
-image: golang:1.13.4-alpine3.10
+image: golang:1.13.5-alpine3.10
 
 # From: https://blog.sparksuite.com/7-ways-to-speed-up-gitlab-ci-cd-times-29f60aab69f9
 variables:
@@ -38,61 +38,25 @@ golint-ci:
     - master
 
 dependency_scan:
-  image: node:13.1.0-alpine3.10
   stage: unit_test
   allow_failure: true
   before_script:
     - *apk_upgrade
   script:
+    - apk add --update nodejs npm
+    - npm config set unsafe-perm true
     - npm install -g snyk
     - snyk auth $SNYK_TOKEN
     - snyk test
     - snyk monitor
-    - npm link deploy/
-    - snyk test --file=deploy/package.json
-    - snyk monitor --file=deploy/package.json
 
 darwin/amd64(macOSX):
   stage: build
   allow_failure: true
   before_script:
     - *apk_upgrade
-    - *install_build_deps
   script:
     - GOCACHE=$CI_PROJECT_DIR/.go-build GOARCH=amd64 GOOS=darwin go build -o cmd/prospectbot prospectbot.go
-    - GOCACHE=$CI_PROJECT_DIR/.go-build GOARCH=amd64 GOOS=darwin go build -o cmd/errors errors.go
-  cache:
-    <<: *global_cache
-    paths:
-      - .go-build
-  except:
-    - master
-
-windows/386(Windows):
-  stage: build
-  allow_failure: true
-  before_script:
-    - *apk_upgrade
-    - *install_build_deps
-  script:
-    - GOCACHE=$CI_PROJECT_DIR/.go-build GOARCH=amd64 GOOS=darwin go build -o cmd/prospectbot prospectbot.go
-    - GOCACHE=$CI_PROJECT_DIR/.go-build GOARCH=amd64 GOOS=darwin go build -o cmd/errors errors.go
-  cache:
-    <<: *global_cache
-    paths:
-      - .go-build
-  except:
-    - master
-
-windows/amd64(Windows):
-  stage: build
-  allow_failure: true
-  before_script:
-    - *apk_upgrade
-    - *install_build_deps
-  script:
-    - GOCACHE=$CI_PROJECT_DIR/.go-build GOARCH=amd64 GOOS=darwin go build -o cmd/prospectbot prospectbot.go
-    - GOCACHE=$CI_PROJECT_DIR/.go-build GOARCH=amd64 GOOS=darwin go build -o cmd/errors errors.go
   cache:
     <<: *global_cache
     paths:
@@ -104,10 +68,8 @@ linux/amd64(lambda):
   stage: build
   before_script:
     - *apk_upgrade
-    - *install_build_deps
   script:
     - GOCACHE=$CI_PROJECT_DIR/.go-build GOARCH=amd64 GOOS=darwin go build -o cmd/prospectbot prospectbot.go
-    - GOCACHE=$CI_PROJECT_DIR/.go-build GOARCH=amd64 GOOS=darwin go build -o cmd/errors errors.go
   cache:
     <<: *global_cache
     policy: pull-push
@@ -130,7 +92,11 @@ test_coverage:
     paths:
       - .go-build
   script:
-    - GOCACHE=$CI_PROJECT_DIR/.go-build go test -coverprofile=coverage.cov -v
+    - GOCACHE=$CI_PROJECT_DIR/.go-build go test -coverprofile=coverage.txt -covermode=atomic -v
+    - apk add curl bash
+    - curl -s https://codecov.io/bash > codecov.sh
+    - chmod +x codecov.sh
+    - ./codecov.sh
   except:
     - master
 
