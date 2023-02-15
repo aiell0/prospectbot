@@ -4,7 +4,7 @@
   "description": "Crypto Mining",
   "main": "prospectbot.go",
   "dependencies": {
-    "serverless": "^1.58.0",
+    "serverless": "^3.27.0",
     "serverless-iam-roles-per-function": "^2.0.2"
   },
   "devDependencies": {},
