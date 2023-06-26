@@ -12,6 +12,7 @@ require (
 	github.com/pkg/errors v0.8.1 // indirect
 	github.com/sirupsen/logrus v1.3.0
 	github.com/stretchr/testify v1.2.2
+	golang.org/x/net v0.7.0
 	golang.org/x/crypto v0.0.0-20190123085648-057139ce5d2b // indirect
 	golang.org/x/net v0.0.0-20190125091013-d26f9f9a57f3
 	golang.org/x/sys v0.1.0 // indirect
